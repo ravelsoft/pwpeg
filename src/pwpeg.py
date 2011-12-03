@@ -413,7 +413,7 @@ class Parser(object):
         return result[1]
 
 
-    def partial_parse(self, text):
+    def partial_parse(self, text, *args, **kwargs):
         """ Parse the given input and return only the result of the parsing,
             which is a tuple containing the (number of consumed characters, result of parsing).
 
@@ -421,5 +421,6 @@ class Parser(object):
             the totality of the input.
         """
 
-        return self.toprule_parse(text, skip=self.skiprule_parse)
+        parse = self.toprule(*args, **kwargs)
+        return parse(text, skip=self.skiprule_parse)
 
