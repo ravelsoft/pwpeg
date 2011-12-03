@@ -413,7 +413,7 @@ class Parser(object):
         return result[1]
 
 
-    def partialParse(self, text):
+    def partial_parse(self, text):
         """ Parse the given input and return only the result of the parsing,
             which is a tuple containing the (number of consumed characters, result of parsing).
 
