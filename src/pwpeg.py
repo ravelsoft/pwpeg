@@ -2,7 +2,6 @@
     @author Christophe Eymard <christophe@ravelsoft.com>
 """
 
-from functools import wraps
 from re import _pattern_type
 import inspect
 
@@ -15,6 +14,7 @@ class SyntaxError(Exception):
         for a match.
     """
 
+
 class IgnoreResult(object):
     """ This class is used by the parsing rules to determine wether to add the
         result of some parsing to the general result.
@@ -23,14 +23,18 @@ class IgnoreResult(object):
         of 0 when they match.
     """
 
-    pass
 
 class Rule(object):
-    """ A Rule.
+    """ A Grammar rule.
     """
 
     class ArmedRule(object):
-        """
+        """ A Grammar rule which rules expression has been evaluated.
+            Calling it like a function calls its parse() method with
+            the right rules.
+
+            The fact we have to arm rules is to allow the rules to be
+            directly parametrizable.
         """
 
         def __init__(self, rule, *args, **kwargs):
@@ -42,27 +46,14 @@ class Rule(object):
             return self.rule.parse(text, rules=self.rule.rulefn(*self.args, **self.kwargs), skip=skip)
 
 
-    @staticmethod
-    def from_function(func, direct_processing=None):
-        """ Create a Rule which rule function is func.
-        """
-
-        if direct_processing:
-            return Rule(func, direct_processing)
-        else:
-            return Rule(func)
-
-
     def __call__(self, *args, **kwargs):
-        """  
+        """ Shortcut to create an ArmedRule out of the current rule.
         """
 
         return Rule.ArmedRule(self, *args, **kwargs)
 
 
     def __init__(self, *args):
-        """
-        """
 
         if len(args) == 0:
             raise Exception("Can not have empty rules")
@@ -71,6 +62,11 @@ class Rule(object):
             # Passing a rule function
             self.rulefn = args[0]
             self.name = args[0].__name__
+
+        elif len(args) == 1 and isinstance(args[0], tuple):
+            self.rulefn = lambda: args[0]
+            self.name = self.__class__.__name__
+
         else:
             self.rulefn = lambda: args
             self.name = self.__class__.__name__
@@ -78,7 +74,7 @@ class Rule(object):
 
 
     def _parse_terminal(self, text, terminal):
-        """ Try to match text.
+        """ Try to match a string in the input.
         """
 
         if text.startswith(terminal):
@@ -87,7 +83,7 @@ class Rule(object):
 
 
     def _parse_regexp(self, text, reg):
-        """ Try to match a regexp and returns its match.
+        """ Try to match a regexp and returns its entire match.
         """
 
         m = reg.match(text)
@@ -97,7 +93,7 @@ class Rule(object):
 
 
     def parse(self, text, rules=None, skip=None):
-        """ Execute our own rules.
+        """ Execute the rules
         """
 
         advanced = 0
@@ -153,12 +149,12 @@ class Rule(object):
                 continue
 
             if subrule_result is False:
-                # FIXME: we should be more explicit here !
-                # Also, we should keep in Choices a list of all the tried combination
+                # FIXME We should keep in Either a list of all the tried combination
                 # that failed, as well as the position where the failing was
                 # found.
 
-                # The subrule_result returning false is only when matching a terminal.
+                # The subrule_result returning false is only when matching a terminal
+                # or a regular expression.
                 raise SyntaxError(repr(r))
 
             # If everything went according to plan, the subrule_result is an tuple
@@ -177,8 +173,11 @@ class Rule(object):
         return advanced, results
 
 
-    def set_processer(self, fn):
+    def set_processor(self, fn):
         """ Add a processor function to the rules.
+            
+            This is to be used when the processor function is not directly given to
+            the rule in its constructor.
         """
 
         rulesfn = self.rulesfn
@@ -191,7 +190,7 @@ class Rule(object):
 
 
 class Repetition(Rule):
-    """ A set of rules that can be repeated.
+    """ A set of rules that can be repeated, like {m,n} in regular expressions.
     """
 
 
@@ -233,6 +232,8 @@ class Repetition(Rule):
 
 
 class OneOrMore(Repetition):
+    """ A Repetition that acts like the + in regular expressions.
+    """
 
     def __init__(self, *args, **kwargs):
         super(OneOrMore, self).__init__(1, -1, *args)
@@ -240,6 +241,8 @@ class OneOrMore(Repetition):
 
 
 class ZeroOrMore(Repetition):
+    """ A Repetition that acts like the * in regular expressions.
+    """
 
     def __init__(self, *args, **kwargs):
         super(ZeroOrMore, self).__init__(0, -1, *args)
@@ -247,6 +250,8 @@ class ZeroOrMore(Repetition):
 
 
 class Optional(Repetition):
+    """ The equivalent of the ? in regular expressions.
+    """
 
     def __init__(self, *args, **kwargs):
         super(Optional, self).__init__(0, 1, *args)
@@ -298,19 +303,21 @@ class And(Rule):
 class Either(Rule):
     """ Try parsing with several rules and return the result of the first
         one that works.
+
+        The rules are given to the constructor as its arguments.
     """
 
     def __init__(self, *args):
         self.rules = []
 
         for a in args:
-            if isinstance(a, tuple):
-                self.rules.append(Rule(*a))
+            if isinstance(a, Rule):
+                self.rules.append(a)
             else:
                 self.rules.append(Rule(a))
 
         self.rulefn = lambda: None
-        self.name = "Choice<>"
+        self.name = "Either"
 
 
     def parse(self, text, rules, skip):
@@ -378,10 +385,7 @@ class Parser(object):
         if not isinstance(toprule, Rule):
             toprule = Rule(toprule)
 
-        if not isinstance(toprule, Rule.ArmedRule):
-            self.toprule_parse = toprule()
-        else:
-            self.toprule_parse = toprule
+        self.toprule = toprule
 
         if skiprule:
             if not isinstance(skiprule, Rule):
@@ -392,14 +396,15 @@ class Parser(object):
             self.skiprule_parse = None
 
 
-    def parse(self, text):
+    def parse(self, text, *args, **kwargs):
         """ Parse the given input and return the result of the parsing.
 
             An Exception will be raised if the parsing does not use the
             integrality of the text.
         """
 
-        result = self.toprule_parse(text, skip=self.skiprule_parse)
+        parse = self.toprule(*args, **kwargs)
+        result = parse(text, skip=self.skiprule_parse)
 
         if result[0] != len(text):
             raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: %s" % text[result[0]:])
