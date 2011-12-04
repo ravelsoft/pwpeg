@@ -4,6 +4,13 @@
 
 from re import _pattern_type
 import inspect
+import sys
+
+if sys.version_info >= (3, 0):
+    # Python 3 removed entirely the unicode type, so to have
+    # the text isinstance() still work, we just remap it to str (which
+    # is unicode anyways)
+    unicode = str
 
 
 class SyntaxError(Exception):
@@ -109,7 +116,7 @@ class Rule(object):
                 try:
                     adv, res = skip(text[advanced:])
                     advanced += adv
-                except SyntaxError, e:
+                except SyntaxError as e:
                     # Nothing to skip.
                     pass
 
@@ -185,7 +192,7 @@ class Rule(object):
         return fn
 
     def __repr__(self):
-        return "<%s>" % self.name
+        return "<{1}>".format(self.name)
 
 
 
@@ -212,7 +219,7 @@ class Repetition(Rule):
             try:
                 # Get the results.
                 adv, res = super(Repetition, self).parse(text[advance:], rules, skip)
-            except SyntaxError, e:
+            except SyntaxError as e:
                 break
 
             # Parsing was successful, so we add it to the result.
@@ -225,7 +232,7 @@ class Repetition(Rule):
             times += 1
 
         if _from != -1 and times < _from:
-            raise SyntaxError("Rule needs to be repeated at least %d times" % _from)
+            raise SyntaxError("Rule needs to be repeated at least {1} times".format(_from))
 
         return advance, result
 
@@ -249,12 +256,22 @@ class ZeroOrMore(Repetition):
 
 
 
+
 class Optional(Repetition):
     """ The equivalent of the ? in regular expressions.
     """
 
     def __init__(self, *args, **kwargs):
         super(Optional, self).__init__(0, 1, *args)
+
+
+    def parse(self, text, rules, skip=None):
+        adv, res = super(Optional, self).parse(text, rules, skip)
+
+        if len(res) == 0:
+            return None
+
+        return res[0]
 
 
 
@@ -272,7 +289,7 @@ class Not(Rule):
         try:
             super(Not, self).parse(text, rules, skip)
             raise SyntaxError("Matched input that should not have been matched")
-        except SyntaxError, e:
+        except SyntaxError as e:
             # Couldn't match the next rule, which is what we want, so
             # we return a result that won't advance the parser.
             return 0, IgnoreResult
@@ -326,7 +343,7 @@ class Either(Rule):
             try:
                 r = rule()
                 return r(text, skip)
-            except SyntaxError, e:
+            except SyntaxError as e:
                 # FIXME should store the error
 
                 # We continue since the SyntaxError just means that we didn't match and
@@ -407,7 +424,7 @@ class Parser(object):
         result = parse(text, skip=self.skiprule_parse)
 
         if result[0] != len(text):
-            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: %s" % text[result[0]:])
+            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: {1}".format(text[result[0]:]))
 
         # Everything went fine, sending the results.
         return result[1]
