@@ -31,6 +31,12 @@ class IgnoreResult(object):
     """
 
 
+def rule(*args, **kwargs):
+    if len(args) == 1:
+        return Rule(args[0])
+    return lambda x: Rule(x, *args, **kwargs)
+
+
 class Rule(object):
     """ A Grammar rule.
     """
@@ -63,6 +69,7 @@ class Rule(object):
     def __init__(self, *args, **kwargs):
 
         if len(args) == 0:
+            print(args, kwargs)
             raise Exception("Can not have empty rules")
 
         if callable(args[0]) and not isinstance(args[0], Rule) and not isinstance(args[0], Rule.ArmedRule):
@@ -206,7 +213,7 @@ class Rule(object):
         return fn
 
     def __repr__(self):
-        return "<{1}>".format(self.name)
+        return "<{0}>".format(self.name)
 
 
 
@@ -246,7 +253,7 @@ class Repetition(Rule):
             times += 1
 
         if _from != -1 and times < _from:
-            raise SyntaxError("Rule needs to be repeated at least {1} times".format(_from))
+            raise SyntaxError("Rule needs to be repeated at least {0} times".format(_from))
 
         return advance, result
 
@@ -432,7 +439,7 @@ class Parser(object):
         result = parse(text)
 
         if result[0] != len(text):
-            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: {1}".format(text[result[0]:]))
+            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: {0}".format(text[result[0]:]))
 
         # Everything went fine, sending the results.
         return result[1]

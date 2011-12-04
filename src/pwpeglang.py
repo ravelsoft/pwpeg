@@ -8,7 +8,6 @@ import re
 re_regexp = re.compile("/(\\/|[^/])+/[idsmlux]+")
 re_lead = re.compile("^[ \t]+")
 
-
 class DeferredValue(object):
 
     def __init__(self, default):
@@ -29,8 +28,11 @@ class DeferredValue(object):
 
 PIPE = "|"
 ARROW = "->"
-SPACES = re.compile("[ \t]*")
+SPACE = re.compile("\s*")
+LINE_SPACE = re.compile("[ \t]*")
 EOL = "\n"
+
+############################
 
 identifier = Rule(re.compile("[a-zA-Z_][a-zA-Z0-9_]*"))
 
@@ -40,19 +42,22 @@ empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
 regexp = Rule(re_regexp)
 
+starting_code = Rule("%%", "%%")
 
-@Rule
+#############################
+
+@rule
 def leading_indent(indent):
 
     if indent.isset():
-        return re.compile("[ \t]{1}".format(indent.value()))
+        return re.compile("[ \t]{0}".format(indent.value()))
 
     # The first time around, we eat all the spaces.
     # Only after does this rule only eat the leading spaces.
     return re_lead
 
 
-@Rule
+@rule
 def indented_line(indent):
 
     def action_set_indentation(lead, line, opt):
@@ -66,7 +71,7 @@ def indented_line(indent):
     return leading_indent(indent), to_eol, Optional(empty_lines), action_set_indentation
 
 
-@Rule
+@rule(skip=None)
 def indented_block(indentation=DeferredValue(1)):
 
     def _action_concatenate(first_line, others):
@@ -75,6 +80,4 @@ def indented_block(indentation=DeferredValue(1)):
 
     return indented_line(indentation), ZeroOrMore(indented_line(indentation)), _action_concatenate
 
-
-starting_code = Rule("%%", "%%")
-
+toplevel = Rule(Optional(starting_code), OneOrMore(_rule), skip=SPACE)
