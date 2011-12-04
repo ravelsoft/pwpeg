@@ -60,7 +60,7 @@ class Rule(object):
         return Rule.ArmedRule(self, *args, **kwargs)
 
 
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
 
         if len(args) == 0:
             raise Exception("Can not have empty rules")
@@ -77,7 +77,18 @@ class Rule(object):
         else:
             self.rulefn = lambda: args
             self.name = self.__class__.__name__
-        
+
+        self.set_skip(kwargs.get("skip"))
+
+
+    def set_skip(self, skip):
+        if skip is not None:
+            if not isinstance(skip, Rule):
+                skip = Rule(skip)()
+            else:
+                skip = skip()
+
+        self.skip = skip
 
 
     def _parse_terminal(self, text, terminal):
@@ -102,6 +113,9 @@ class Rule(object):
     def parse(self, text, rules=None, skip=None):
         """ Execute the rules
         """
+
+        # The rule's skipping rule has precedence over the given skip parameter
+        skip = self.skip or skip
 
         advanced = 0
         results = []
@@ -201,10 +215,10 @@ class Repetition(Rule):
     """
 
 
-    def __init__(self, _from, _to, *args):
+    def __init__(self, _from, _to, *args, **kwargs):
         self._from = _from
         self._to = _to
-        super(Repetition, self).__init__(*args)
+        super(Repetition, self).__init__(*args, **kwargs)
 
 
     def parse(self, text, rules, skip=None):
@@ -243,7 +257,7 @@ class OneOrMore(Repetition):
     """
 
     def __init__(self, *args, **kwargs):
-        super(OneOrMore, self).__init__(1, -1, *args)
+        super(OneOrMore, self).__init__(1, -1, *args, **kwargs)
 
 
 
@@ -252,7 +266,7 @@ class ZeroOrMore(Repetition):
     """
 
     def __init__(self, *args, **kwargs):
-        super(ZeroOrMore, self).__init__(0, -1, *args)
+        super(ZeroOrMore, self).__init__(0, -1, *args, **kwargs)
 
 
 
@@ -262,7 +276,7 @@ class Optional(Repetition):
     """
 
     def __init__(self, *args, **kwargs):
-        super(Optional, self).__init__(0, 1, *args)
+        super(Optional, self).__init__(0, 1, *args, **kwargs)
 
 
     def parse(self, text, rules, skip=None):
@@ -324,7 +338,8 @@ class Either(Rule):
         The rules are given to the constructor as its arguments.
     """
 
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
+        self.set_skip(kwargs.get("skip"))
         self.rules = []
 
         for a in args:
@@ -338,6 +353,7 @@ class Either(Rule):
 
 
     def parse(self, text, rules, skip):
+        skip = self.skip or skip
 
         for rule in self.rules:
             try:
@@ -397,20 +413,12 @@ class Parser(object):
         any rule, useful to remove white spaces and comments.
     """
 
-    def __init__(self, toprule, skiprule=None):
+    def __init__(self, toprule):
 
         if not isinstance(toprule, Rule):
             toprule = Rule(toprule)
 
         self.toprule = toprule
-
-        if skiprule:
-            if not isinstance(skiprule, Rule):
-                skiprule = Rule(skiprule)
-
-            self.skiprule_parse = skiprule()
-        else:
-            self.skiprule_parse = None
 
 
     def parse(self, text, *args, **kwargs):
@@ -421,7 +429,7 @@ class Parser(object):
         """
 
         parse = self.toprule(*args, **kwargs)
-        result = parse(text, skip=self.skiprule_parse)
+        result = parse(text)
 
         if result[0] != len(text):
             raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: {1}".format(text[result[0]:]))
@@ -439,5 +447,5 @@ class Parser(object):
         """
 
         parse = self.toprule(*args, **kwargs)
-        return parse(text, skip=self.skiprule_parse)
+        return parse(text)
 
