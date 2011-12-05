@@ -107,7 +107,9 @@ class Rule(object):
 
     def _process_kwargs(self, kwargs):
         self.name = kwargs.get("name") or self.name
-        self.set_skip(kwargs.get("skip"))
+
+        if "skip" in kwargs:
+            self.set_skip(kwargs.get("skip"))
 
 
     def set_skip(self, skip):
@@ -144,7 +146,8 @@ class Rule(object):
         """
 
         # The rule's skipping rule has precedence over the given skip parameter
-        skip = self.skip or skip
+        if "skip" in self.__dict__:
+            skip = self.skip
 
         advanced = 0
         results = Results(self.name)
@@ -385,7 +388,8 @@ class Either(Rule):
 
 
     def parse(self, text, rules, skip):
-        skip = self.skip or skip
+        if "skip" in self.__dict__:
+            skip = self.skip
 
         for rule in self.rules:
             try:

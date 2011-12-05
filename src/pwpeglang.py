@@ -27,7 +27,7 @@ class LaterValue(object):
 
 
 PIPE = "|"
-SPACE = re.compile("\s*")
+SPACE = Rule(re.compile("\s*"), name="Whitespaces")
 LINE_SPACE = re.compile("[ \t]*")
 LPAREN = "("
 RPAREN = ")"
@@ -67,7 +67,7 @@ def delimited(char, escape='\\'):
 
 @rule
 def repeating_delimited(rule, delim):
-    return rule, ZeroOrMore(delim, rule, Action(lambda _1, _2: rule)), Action(lambda first, n: [first] + n)
+    return rule, ZeroOrMore(delim, rule, Action(lambda _1, _2: _2)), Action(lambda first, n: [first] + n)
 
 ############################
 
@@ -75,7 +75,7 @@ space_and_comments = re.compile("(\s+|#.*$)*", re.M)
 
 identifier = Rule(re.compile("[a-zA-Z_][a-zA-Z0-9_]*"), name="Identifier")
 
-to_eol = Rule(re.compile("[^\n]*\n?"), lambda x: x.trim())
+to_eol = Rule(re.compile("[^\n]*", re.M))
 
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
@@ -91,7 +91,8 @@ def leading_indent(indent):
     if indent.isset():
         # Since we know how many leading spaces our indentation is at,
         # we want to match its exact number.
-        return re.compile("[ \t]{0}".format(indent.value()))
+        pattern = "[ \t]{{{0}}}".format(indent.value())
+        return re.compile(pattern)
 
     # The first time around, we eat all the spaces.
     # Only after does this rule only eat the leading spaces.
@@ -103,7 +104,7 @@ def indented_line(indent):
 
     def action_set_indentation(lead, line, opt):
         ind = len(lead)
-        
+ 
         indent.set_if_unset(ind)
 
         # the empty lines are just squizzed out of the parsed text.
@@ -127,9 +128,11 @@ balanced_paren      = balanced("(", ")")
 balanced_braces     = balanced("{", "}")
 balanced_brackets   = balanced("[", "]")
 
+# Re-concatenate the string.
 string = Either(
-    delimited('\''), 
-    delimited('"'),
+    (delimited('\''), Action(lambda x: "".join(x))),
+    (delimited('"'), Action(lambda x: "".join(x))),
+    # Backslash quoted string
     (re.compile("\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s.replace('\'', '\\\'') + "'"))
 )
 
@@ -140,8 +143,8 @@ regexp = Rule(
 
 action = Either(
     balanced(LBRACE, RBRACE),
-    Rule(ARROW, Optional(LINE_SPACE), EOL, indented_block, skip=None),
-    (ARROW, to_eol)
+    Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, indented_block, skip=None, name="Multi Line Action"),
+    Rule(ARROW, to_eol, skip=None, name="Single Line Action")
 )
 
 external_rule = Either(
@@ -166,7 +169,7 @@ real_rule = Rule(Either(
 
 label = Rule(identifier, COLON, Action(lambda _1, _2: _1), name="Production Label")
 
-full_rule = Rule(Optional(label), real_rule, Not(EQUAL), name="Full Rule")
+full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, Optional(action), name="Full Rule")
 
 either_rule = Rule(
     LBRACKET, repeating_delimited(full_rule, PIPE), RBRACKET, Action(lambda _1, rules, _2: rules)
@@ -181,15 +184,15 @@ rules = Rule(
 
 ####################### Rule declaration ###########################
 
-rulearg = Rule(identifier, real_rule)
+rulearg = Rule(identifier, real_rule, name="Rule Argument")
 
 ruledecl = Rule(
-    rulename, Optional(repeating_delimited(rulearg, COMMA)),
+    rulename, Optional(repeating_delimited(rulearg, COMMA)), EQUAL,
     name="Rule Declaration"
 )
 
 grammarrule = Rule(
-    ruledecl, EQUAL, rules,
+    ruledecl, rules,
     name="Grammar Rule"
 )
 
@@ -198,9 +201,6 @@ toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), skip=space_and_
 parser = Parser(toplevel)
 
 #####################################################
-
-# p2 = Parser(repeating_delimited('a', ','))
-# print(p2.parse('a,a,a'))
 
 if __name__ == "__main__":
     from optparse import OptionParser
