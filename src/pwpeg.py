@@ -36,6 +36,12 @@ def rule(*args, **kwargs):
         return Rule(args[0])
     return lambda x: Rule(x, *args, **kwargs)
 
+class Action(object):
+    def __init__(self, fn):
+        self.f = fn
+
+    def __call__(self, *args, **kwargs):
+        return self.f(*args, **kwargs)
 
 class Rule(object):
     """ A Grammar rule.
@@ -85,6 +91,10 @@ class Rule(object):
             self.rulefn = lambda: args
             self.name = self.__class__.__name__
 
+        self._process_kwargs(kwargs)
+
+    def _process_kwargs(self, kwargs):
+        self.name = kwargs.get("name") or self.name
         self.set_skip(kwargs.get("skip"))
 
 
@@ -160,19 +170,17 @@ class Rule(object):
                 r = r()
                 subrule_result = r(text[advanced:], skip=skip)
 
-            # Otherwise, this is just a construct that does some checking of its own.
+            elif isinstance(r, Action):
+                return advanced, r(*results)
+
+            # Otherwise, this is just a predicate
             else:
-                # The construct is called with the results we have so far.
+                # The predicate is called with the results we have so far.
                 # It will raise SyntaxError if it returns false.
                 res = r(*results)
 
                 if res is False:
-                    raise SyntaxError("Check returned false")
-
-                # If this function was the last rule, it means it was actually a processor
-                # function given as a lambda, so we return its results.
-                if i == len(rules) - 1:
-                    return advanced, res
+                    raise SyntaxError("The predicate was not satisfied")
 
                 continue
 
@@ -346,7 +354,6 @@ class Either(Rule):
     """
 
     def __init__(self, *args, **kwargs):
-        self.set_skip(kwargs.get("skip"))
         self.rules = []
 
         for a in args:
@@ -357,6 +364,8 @@ class Either(Rule):
 
         self.rulefn = lambda: None
         self.name = "Either"
+
+        self._process_kwargs(kwargs)
 
 
     def parse(self, text, rules, skip):
