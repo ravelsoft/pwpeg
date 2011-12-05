@@ -43,6 +43,16 @@ class Action(object):
     def __call__(self, *args, **kwargs):
         return self.f(*args, **kwargs)
 
+
+class Results(list):
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return "{0}:{1}".format(self.name, super(Results, self).__repr__())
+        
+
+
 class Rule(object):
     """ A Grammar rule.
     """
@@ -63,6 +73,9 @@ class Rule(object):
 
         def __call__(self, text, skip=None):
             return self.rule.parse(text, rules=self.rule.rulefn(*self.args, **self.kwargs), skip=skip)
+
+        def __repr__(self):
+            return self.rule.__repr__(repr(self.args))
 
 
     def __call__(self, *args, **kwargs):
@@ -113,7 +126,7 @@ class Rule(object):
         """
 
         if text.startswith(terminal):
-            return (len(terminal), terminal)
+            return len(terminal), terminal
         return False
 
 
@@ -135,7 +148,7 @@ class Rule(object):
         skip = self.skip or skip
 
         advanced = 0
-        results = []
+        results = Results(self.name)
 
         if not isinstance(rules, tuple):
             rules = (rules,)
@@ -167,8 +180,12 @@ class Rule(object):
             # We have a rule that hasn't be armed. We assume that it's rule function doesn't
             # take arguments.
             elif isinstance(r, Rule):
-                r = r()
-                subrule_result = r(text[advanced:], skip=skip)
+                r2 = r()
+                subrule_result = r2(text[advanced:], skip=skip)
+
+                # Text was not matched, so just go to the next rule.
+                if subrule_result is None:
+                    continue
 
             elif isinstance(r, Action):
                 return advanced, r(*results)
@@ -196,6 +213,7 @@ class Rule(object):
             # If everything went according to plan, the subrule_result is an tuple
             # with the number of consumed characters and the result of the processing
             # of the rule.
+            print(r, subrule_result)
             sub_adv, sub_processed_result = subrule_result
 
             advanced += sub_adv
@@ -220,8 +238,8 @@ class Rule(object):
         self.rulesfn = lambda *args, **kwargs: rulesfn(*args, **kwargs) + (fn,)
         return fn
 
-    def __repr__(self):
-        return "<{0}>".format(self.name)
+    def __repr__(self, args=""):
+        return "<{0}{1}>".format(self.name, args)
 
 
 
@@ -237,25 +255,25 @@ class Repetition(Rule):
 
 
     def parse(self, text, rules, skip=None):
+        results = []
+
         times = 0
         _from, _to = self._from, self._to
 
         advance = 0
 
-        result = []
-
         while advance < len(text) and (_to == -1 or times < _to):
             try:
-                # Get the results.
+                # Get the resultss.
                 adv, res = super(Repetition, self).parse(text[advance:], rules, skip)
             except SyntaxError as e:
                 break
 
-            # Parsing was successful, so we add it to the result.
+            # Parsing was successful, so we add it to the results.
             advance += adv
 
             if res is not IgnoreResult:
-                result.append(res)
+                results.append(res)
 
             # We repeated one more time !
             times += 1
@@ -263,7 +281,7 @@ class Repetition(Rule):
         if _from != -1 and times < _from:
             raise SyntaxError("Rule needs to be repeated at least {0} times".format(_from))
 
-        return advance, result
+        return advance, results
 
 
 
@@ -298,9 +316,9 @@ class Optional(Repetition):
         adv, res = super(Optional, self).parse(text, rules, skip)
 
         if len(res) == 0:
-            return None
+            return 0, None
 
-        return res[0]
+        return adv, res[0]
 
 
 
@@ -419,7 +437,14 @@ class R(Rule):
 
         return self.gl[self.name](*args, **kwargs)
 
-
+def analyse_frames(f, i=[0]):
+    if f.f_back:
+        analyse_frames(f.f_back)
+    current_obj = f.f_locals.get("self")
+    l = f.f_locals
+    if isinstance(current_obj, Rule):
+        print((" " * i[0]) + repr(current_obj) + " " + repr(l.get("rules")) + " -> " + repr(l.get("results")))
+        i[0] += 1
 
 class Parser(object):
     """ A parser that parses a text input.
@@ -444,8 +469,23 @@ class Parser(object):
             integrality of the text.
         """
 
-        parse = self.toprule(*args, **kwargs)
-        result = parse(text)
+        try:
+            parse = self.toprule(*args, **kwargs)
+            result = parse(text)
+        except Exception as e:
+            etype, eobj, etb = sys.exc_info()
+            tb = etb
+            while tb.tb_next:
+                tb = tb.tb_next
+            print("The following exception was received:\n")
+            import traceback
+            traceback.print_tb(etb)
+            print(e)
+
+            print("\nWhile parsing, at this point:\n")
+            analyse_frames(tb.tb_frame)
+
+            return
 
         if result[0] != len(text):
             raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: {0}".format(text[result[0]:]))

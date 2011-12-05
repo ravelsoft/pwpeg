@@ -39,13 +39,41 @@ ARROW = "->"
 DOLLAR = "$"
 AMPS = "&"
 EXCL = "!"
+EQUAL = "="
+COLON = ":"
+COMMA = ","
 EOL = "\n"
+
+#############################
+
+@rule
+def balanced_inside(start, end, escape="\\"):
+    return Either(
+        # Recurse on a balanced expression
+        (start, R("balanced", start, end), end, Action(lambda s, m, e: s + m + e)),
+
+        # Or simply gobble up characters that neither start nor end or their
+        # backslashed version.
+        re.compile("({0}|{1}|[^{2}{3}])*".format(escape + re.escape(start), escape + re.escape(end), re.escape(start), re.escape(end)))
+    )
+
+@rule(skip=None)
+def balanced(start, end, escape="\\"):
+    return start, balanced_inside(start, end, escape), end, Action(lambda _1, _2, _3: _1 + _2 + _3)
+
+@rule
+def delimited(char, escape='\\'):
+    return char, re.compile("({0}|[^{1}])*".format(escape + re.escape(char), re.escape(char))), char
+
+@rule
+def repeating_delimited(rule, delim):
+    return rule, ZeroOrMore(delim, rule, Action(lambda _1, _2: rule)), Action(lambda first, n: [first] + n)
 
 ############################
 
 space_and_comments = re.compile("(\s+|#.*$)*", re.M)
 
-identifier = Rule(re.compile("[a-zA-Z_][a-zA-Z0-9_]*"))
+identifier = Rule(re.compile("[a-zA-Z_][a-zA-Z0-9_]*"), name="Identifier")
 
 to_eol = Rule(re.compile("[^\n]*\n?"), lambda x: x.trim())
 
@@ -54,23 +82,6 @@ empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 regexp = Rule(re_regexp)
 
 starting_code = Rule("%%", "%%")
-
-#############################
-
-@rule(skip=None)
-def balanced(start, end):
-    return Either(
-        # Recurse on a balanced expression
-        (start, R("balanced", start, end), end, lambda s, m, e: s + m + e),
-
-        # Or simply gobble up characters that neither start nor end or their
-        # backslashed version.
-        re.compile("({0}|{1}|.)*".format('\\' + re.escape(start), '\\' + re.escape(end)))
-    )
-
-@rule
-def delimited(char):
-    return char, re.compile("({0}|.)*".format('\\' + re.escape(char)), char
 
 #################################################################################
 
@@ -98,7 +109,7 @@ def indented_line(indent):
         # the empty lines are just squizzed out of the parsed text.
         return line
 
-    return leading_indent(indent), to_eol, Optional(empty_lines), action_set_indentation
+    return leading_indent(indent), to_eol, Optional(empty_lines), Action(action_set_indentation)
 
 
 @rule(skip=None)
@@ -119,7 +130,7 @@ balanced_brackets   = balanced("[", "]")
 string = Either(
     delimited('\''), 
     delimited('"'),
-    (re.compile("\\[^ \t\n\[\]\|\)]+"), lambda s: "'" + s.replace('\'', '\\\'') + "'")
+    (re.compile("\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s.replace('\'', '\\\'') + "'"))
 )
 
 regexp = Rule(
@@ -133,7 +144,7 @@ action = Either(
     (ARROW, to_eol)
 )
 
-external_rulename = Either(
+external_rule = Either(
     (DOLLAR, identifier),
     (DOLLAR, balanced_paren),
     skip=None
@@ -143,19 +154,60 @@ predicate = Rule(
     Either(AMPS, EXCL), balanced_braces
 )
 
-rulename = Rule(identifier, Optional(balanced_paren))
+rulename = Rule(identifier, Optional(balanced_paren), name="Rule Name")
 
-ruleargs = Rule(identifier, value, ZeroOrMore(COMMA, identifier, value))
+real_rule = Rule(Either(
+    regexp,
+    string,
+    rulename,
+    external_rule,
+    R("either_rule")
+), name="Real Rule")
+
+label = Rule(identifier, COLON, Action(lambda _1, _2: _1), name="Production Label")
+
+full_rule = Rule(Optional(label), real_rule, name="Full Rule")
+
+either_rule = Rule(
+    LBRACKET, repeating_delimited(full_rule, PIPE), RBRACKET, Action(lambda _1, rules, _2: rules)
+)
+
+rules = Rule(
+    repeating_delimited(full_rule, PIPE),
+    name="Rules+"
+)
+
+####################### Rule declaration ###########################
+
+rulearg = Rule(identifier, real_rule)
 
 ruledecl = Rule(
-    rulename, Optional(ruleargs)
+    rulename, Optional(repeating_delimited(rulearg, COMMA)),
+    name="Rule Declaration"
 )
 
 grammarrule = Rule(
-    ruldecl, EQUAL, productions
+    ruledecl, EQUAL, rules,
+    name="Grammar Rule"
 )
 
-toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), skip=space_and_comments)
+toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), skip=space_and_comments, name="Top Level")
 
 parser = Parser(toplevel)
 
+#####################################################
+
+# p2 = Parser(repeating_delimited('a', ','))
+# print(p2.parse('a,a,a'))
+
+if __name__ == "__main__":
+    from optparse import OptionParser
+    optparser = OptionParser()
+
+    options, args = optparser.parse_args()
+
+    for a in args:
+        f = open(a, "r")
+        s = f.read()
+        f.close()
+        print(parser.parse(s))
