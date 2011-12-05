@@ -2,8 +2,10 @@
     @author Christophe Eymard <christophe.eymard@ravelsoft.com>
 """
 
-from pwpeg import *
 import re
+
+from pwpeg import *
+from pwast import *
 
 re_regexp = re.compile("/(\\/|[^/])+/[idsmlux]+")
 re_lead = re.compile("^[ \t]+")
@@ -25,6 +27,15 @@ class LaterValue(object):
     def isset(self):
         return "_value" in self.__dict__
 
+def concat(arr):
+    res = []
+    for a in arr:
+        if isinstance(a, list): 
+            res.append(_concat(a))
+        else:
+            res.append(a)
+
+    return "".join(res)
 
 PIPE = "|"
 SPACE = Rule(re.compile("\s*"), name="Whitespaces")
@@ -59,7 +70,7 @@ def balanced_inside(start, end, escape="\\"):
 
 @rule(skip=None)
 def balanced(start, end, escape="\\"):
-    return start, balanced_inside(start, end, escape), end, Action(lambda _1, _2, _3: _1 + _2 + _3)
+    return start, balanced_inside(start, end, escape), end
 
 @rule
 def delimited(char, escape='\\'):
@@ -118,9 +129,9 @@ def indented_block(indentation=LaterValue(1)):
 
     def _action_concatenate(first_line, others):
         lst = [first_line] + others
-        return "".join(lst)
+        return "\n".join(lst)
 
-    return indented_line(indentation), ZeroOrMore(indented_line(indentation)), _action_concatenate
+    return indented_line(indentation), ZeroOrMore(indented_line(indentation)), Action(_action_concatenate)
 
 ##############################################################################################
 
@@ -153,9 +164,12 @@ external_rule = Either(
     skip=None
 )
 
+#######################################################
+
 predicate = Rule(
     Either(AMPS, EXCL), balanced_braces
 )
+
 
 rulename = Rule(identifier, Optional(balanced_paren), name="Rule Name")
 
@@ -167,7 +181,8 @@ real_rule = Rule(Either(
     R("either_rule")
 ), name="Real Rule")
 
-label = Rule(identifier, COLON, Action(lambda _1, _2: _1), name="Production Label")
+label = Rule(identifier, COLON, Action(lambda name, _2: name), name="Production Label")
+
 
 full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, Optional(action), name="Full Rule")
 
@@ -175,7 +190,7 @@ either_rule = Rule(
     LBRACKET, repeating_delimited(full_rule, PIPE), RBRACKET, Action(lambda _1, rules, _2: rules)
 )
 
-rule_repeat = OneOrMore(full_rule)
+rule_repeat = OneOrMore(Either(full_rule, predicate))
 
 rules = Rule(
     repeating_delimited(rule_repeat, PIPE),
@@ -197,6 +212,18 @@ grammarrule = Rule(
 )
 
 toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), skip=space_and_comments, name="Top Level")
+
+###################### <<< ACTIONS >>>
+
+def _predicate_action(op, braced_code):
+    code = braced_code[1].strip()
+    if op == EXCL:
+        code = "not({0})".format(code)
+    return AstPredicate(code)
+
+predicate.set_action(_predicate_action)
+
+#####################################################
 
 parser = Parser(toplevel)
 

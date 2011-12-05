@@ -222,22 +222,23 @@ class Rule(object):
             if sub_processed_result is not IgnoreResult:
                 results.append(sub_processed_result)
 
+        if "action" in self.__dict__:
+            return advanced, self.action(*results)
+
         if len(results) == 1:
             return advanced, results[0]
 
         return advanced, results
 
 
-    def set_processor(self, fn):
-        """ Add a processor function to the rules.
+    def set_action(self, fn):
+        """ Add an action function to the rules.
             
             This is to be used when the processor function is not directly given to
             the rule in its constructor.
         """
 
-        rulesfn = self.rulesfn
-        self.rulesfn = lambda *args, **kwargs: rulesfn(*args, **kwargs) + (fn,)
-        return fn
+        self.action = fn
 
     def __repr__(self, args=""):
         return "<{0}{1}>".format(self.name, args)
