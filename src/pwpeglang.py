@@ -166,14 +166,16 @@ real_rule = Rule(Either(
 
 label = Rule(identifier, COLON, Action(lambda _1, _2: _1), name="Production Label")
 
-full_rule = Rule(Optional(label), real_rule, name="Full Rule")
+full_rule = Rule(Optional(label), real_rule, Not(EQUAL), name="Full Rule")
 
 either_rule = Rule(
     LBRACKET, repeating_delimited(full_rule, PIPE), RBRACKET, Action(lambda _1, rules, _2: rules)
 )
 
+rule_repeat = OneOrMore(full_rule)
+
 rules = Rule(
-    repeating_delimited(full_rule, PIPE),
+    repeating_delimited(rule_repeat, PIPE),
     name="Rules+"
 )
 
@@ -210,4 +212,10 @@ if __name__ == "__main__":
         f = open(a, "r")
         s = f.read()
         f.close()
-        print(parser.parse(s))
+        adv, res = parser.partial_parse(s)
+        left = s[adv:]
+        print(res)
+        if left:
+            print("\n---\n")
+            print(left)
+

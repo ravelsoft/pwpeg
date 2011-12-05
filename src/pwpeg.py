@@ -332,12 +332,12 @@ class Not(Rule):
 
     def parse(self, text, rules, skip):
         try:
-            super(Not, self).parse(text, rules, skip)
-            raise SyntaxError("Matched input that should not have been matched")
+            adv, res = super(Not, self).parse(text, rules, skip)
         except SyntaxError as e:
             # Couldn't match the next rule, which is what we want, so
             # we return a result that won't advance the parser.
             return 0, IgnoreResult
+        raise SyntaxError("Matched input that should not have been matched")
                 
 
 
