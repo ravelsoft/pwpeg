@@ -88,7 +88,6 @@ class Rule(object):
     def __init__(self, *args, **kwargs):
 
         if len(args) == 0:
-            print(args, kwargs)
             raise Exception("Can not have empty rules")
 
         if callable(args[0]) and not isinstance(args[0], Rule) and not isinstance(args[0], Rule.ArmedRule):
@@ -213,7 +212,6 @@ class Rule(object):
             # If everything went according to plan, the subrule_result is an tuple
             # with the number of consumed characters and the result of the processing
             # of the rule.
-            print(r, subrule_result)
             sub_adv, sub_processed_result = subrule_result
 
             advanced += sub_adv
