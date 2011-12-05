@@ -28,6 +28,9 @@ class LaterValue(object):
         return "_value" in self.__dict__
 
 def concat(arr):
+    if arr is None or len(arr) == 0:
+        return ""
+
     res = []
     for a in arr:
         if isinstance(a, list): 
@@ -153,14 +156,22 @@ regexp = Rule(
 )
 
 action = Either(
-    balanced(LBRACE, RBRACE),
-    Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, indented_block, skip=None, name="Multi Line Action"),
-    Rule(ARROW, to_eol, skip=None, name="Single Line Action")
+    Rule(balanced(LBRACE, RBRACE), 
+            Action(lambda b: AstCode(b[1].strip())),
+        name="Brace Action"),
+
+    Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, indented_block,
+            Action(lambda sp, arrow, more_space, eol, code: AstCode(code)),
+        skip=None, name="Multi Line Action"),
+
+    Rule(ARROW, to_eol, 
+            Action(lambda arrow, line: AstCode(line.strip())), 
+        skip=None, name="Single Line Action")
 )
 
 external_rule = Either(
-    (DOLLAR, identifier),
-    (DOLLAR, balanced_paren),
+    (DOLLAR, identifier, Action(lambda d, i: i)),
+    (DOLLAR, balanced_paren, Action(lambda d, b: concat(b))),
     skip=None
 )
 
@@ -171,7 +182,9 @@ predicate = Rule(
 )
 
 
-rulename = Rule(identifier, Optional(balanced_paren), name="Rule Name")
+rulename = Rule(identifier, Optional(balanced_paren), 
+    Action(lambda i, b: i + concat(b)), 
+    name="Rule Name")
 
 real_rule = Rule(Either(
     regexp,
@@ -184,13 +197,13 @@ real_rule = Rule(Either(
 label = Rule(identifier, COLON, Action(lambda name, _2: name), name="Production Label")
 
 
-full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, Optional(action), name="Full Rule")
+full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, name="Full Rule")
 
 either_rule = Rule(
     LBRACKET, repeating_delimited(full_rule, PIPE), RBRACKET, Action(lambda _1, rules, _2: rules)
 )
 
-rule_repeat = OneOrMore(Either(full_rule, predicate))
+rule_repeat = Rule(OneOrMore(Either(full_rule, predicate)), Optional(action))
 
 rules = Rule(
     repeating_delimited(rule_repeat, PIPE),
@@ -215,13 +228,28 @@ toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), skip=space_and_
 
 ###################### <<< ACTIONS >>>
 
+@predicate.set_action
 def _predicate_action(op, braced_code):
     code = braced_code[1].strip()
     if op == EXCL:
         code = "not({0})".format(code)
     return AstPredicate(code)
 
-predicate.set_action(_predicate_action)
+@regexp.set_action
+def _regexp_action(contents, flags):
+    args = []
+
+    args.append('\'' + contents[1].replace('\'', '\\\'') + '\'')
+
+    if flags:
+        fs = []
+        for f in flags:
+            fs.append("re.{0}".format(f.toupper()))
+        fs = " & ".join(fs)
+        args.append(fs)
+
+    return "re.compile({0})".format(", ".join(args))
+
 
 #####################################################
 

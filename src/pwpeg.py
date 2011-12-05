@@ -230,7 +230,7 @@ class Rule(object):
 
         return advanced, results
 
-
+    
     def set_action(self, fn):
         """ Add an action function to the rules.
             
@@ -239,6 +239,7 @@ class Rule(object):
         """
 
         self.action = fn
+        return fn
 
     def __repr__(self, args=""):
         return "<{0}{1}>".format(self.name, args)
