@@ -152,7 +152,7 @@ string = Either(
     (delimited('\''), Action(lambda x: "".join(x))),
     (delimited('"'), Action(lambda x: "".join(x))),
     # Backslash quoted string
-    (re.compile("\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s.replace('\'', '\\\'') + "'"))
+    (re.compile("\\\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s[1:].replace('\'', '\\\'') + "'"))
 )
 
 regexp = Rule(
