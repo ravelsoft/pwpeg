@@ -100,7 +100,7 @@ regexp = Rule(re_regexp)
 
 number = Rule(re.compile("-?[0-9]+"), Action(lambda n: int(n)))
 
-starting_code = Rule("%%", "%%")
+starting_code = Rule("%%", re.compile("((?!%%).)*"), "%%", Action(lambda b, t, e: t))
 
 #################################################################################
 
@@ -290,6 +290,7 @@ if __name__ == "__main__":
         f = open(a, "r")
         s = f.read()
         f.close()
+
         res = parser.parse(s)
         print(res.to_python())
 

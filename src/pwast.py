@@ -211,7 +211,7 @@ class AstRuleDecl(AstNode):
 class AstFile(AstNode):
 
     def __init__(self, code, rules):
-        self.code = code
+        self.code = code or ""
         self.rules = rules
 
     def __repr__(self):
@@ -220,8 +220,8 @@ class AstFile(AstNode):
     def to_python(self, ctx=dict(), indent=0):
         ctx["last_action"] = [0]
 
-        return "\n".join(["from pwpeg import *",
-            self.code.to_python(ctx, indent) if self.code else "",
+        return "\n\n".join(["from pwpeg import *",
+            self.code,
             "\n\n".join([r.to_python(ctx, indent) for r in self.rules])
         ])
 
