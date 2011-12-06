@@ -45,7 +45,9 @@ syn match   string      "'\(\\'\|[^']\)*'"
 syn match   string      /\\[^ \t\n)\]|]*/
 syn match   string      "/\(\\/\|[^/]\)*/[a-z]*"
 
-syn match   rule        '[a-zA-Z_][a-zA-Z0-9_]*\s*='
+syn match   inline      "$([^)]\+)" contains=@PYTHON
+
+syn match   rule        '[a-zA-Z_][a-zA-Z0-9_]*\s*\(([^)]*)\)\?\s\([^=]\)*\s*=' contains=string
 syn match   pwlabel       '[[:alnum:]]\+:' contains=@NoSpell
 
 "syn region  valueRule  start=+="+ms=s+1 end=+"+ skip=+\\"+ contained contains=@NoSpell,escapedRule,bigTagRule,variableRule
