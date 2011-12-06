@@ -42,7 +42,7 @@ syn match severalLineCode /->[ \t]*\n\([ \t]\+\).*\n\(\1.*\n\|[ \t]*\n\)*/ conta
 
 syn match   string      '"\(\\"\|[^"]\)*"'
 syn match   string      "'\(\\'\|[^']\)*'"
-syn match   string      /\\[^ \t]*/
+syn match   string      /\\[^ \t\n)\]|]*/
 syn match   string      "/\(\\/\|[^/]\)*/[a-z]*"
 
 syn match   rule        '[a-zA-Z_][a-zA-Z0-9_]*\s*='
