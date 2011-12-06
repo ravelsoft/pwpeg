@@ -56,6 +56,9 @@ EXCL = "!"
 EQUAL = "="
 COLON = ":"
 COMMA = ","
+STAR = "*"
+QUESTION = "?"
+PLUS = "+"
 EOL = "\n"
 
 #############################
@@ -94,6 +97,8 @@ to_eol = Rule(re.compile("[^\n]*", re.M))
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
 regexp = Rule(re_regexp)
+
+number = Rule(re.compile("-?[0-9]+"), Action(lambda n: int(n)))
 
 starting_code = Rule("%%", "%%")
 
@@ -157,15 +162,15 @@ regexp = Rule(
 
 action = Either(
     Rule(balanced(LBRACE, RBRACE), 
-            Action(lambda b: AstCode(b[1].strip())),
+            Action(lambda b: b[1].strip()),
         name="Brace Action"),
 
     Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, indented_block,
-            Action(lambda sp, arrow, more_space, eol, code: AstCode(code)),
+            Action(lambda sp, arrow, more_space, eol, code: code),
         skip=None, name="Multi Line Action"),
 
     Rule(ARROW, to_eol, 
-            Action(lambda arrow, line: AstCode(line.strip())), 
+            Action(lambda arrow, line: line.strip()), 
         skip=None, name="Single Line Action")
 )
 
@@ -192,39 +197,57 @@ real_rule = Rule(Either(
     rulename,
     external_rule,
     R("either_rule")
-), name="Real Rule")
+), Action(lambda r: AstRuleSingle(r)),
+name="Real Rule")
 
 label = Rule(identifier, COLON, Action(lambda name, _2: name), name="Production Label")
 
+repetition = Rule(Either(
+    ("*", Action(lambda x: (0, -1))),
+    ("+", Action(lambda x: (1, -1))),
+    ("?", Action(lambda x: (0,  1))),
+    ("<", number, ">", Action(lambda l, n, r: (n, n))),
+    ("<", Optional(number), ",", Optional(number), ">", Action(lambda l, fr, c, to, r: (-1 if fr is None else fr, -1 if to is None else to) ))
+))
 
-full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, name="Full Rule")
+full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, Optional(repetition),
+        Action(lambda label, rule, rep: rule.set_label(label).set_repetition(rep)),
+    name="Full Rule")
+
+match_rule = Rule(Either("!", "&"), real_rule, Optional(repetition),
+        Action(lambda sym, rule, mod: rule.set_modifier(mod).set_matching(sym)),
+    name="Matching Rule")
 
 either_rule = Rule(
-    LBRACKET, repeating_delimited(full_rule, PIPE), RBRACKET, Action(lambda _1, rules, _2: rules)
+    LBRACKET, repeating_delimited(R("rules"), PIPE), RBRACKET, Action(lambda _1, rules, _2: AstRuleEither(rules))
 )
 
-rule_repeat = Rule(OneOrMore(Either(full_rule, predicate)), Optional(action))
+rule_repeat = Rule(OneOrMore(Either(match_rule, full_rule, predicate)), Optional(action), Action(lambda x, a: AstRuleGroup(x, a)))
 
 rules = Rule(
-    repeating_delimited(rule_repeat, PIPE),
+    repeating_delimited(rule_repeat, PIPE), Action(lambda x: AstRuleEither(x)),
     name="Rules+"
 )
 
 ####################### Rule declaration ###########################
 
-rulearg = Rule(identifier, real_rule, name="Rule Argument")
+rulearg = Rule(identifier, real_rule, 
+        Action(lambda id, rule: (id, rule)),
+    name="Rule Argument")
 
 ruledecl = Rule(
-    rulename, Optional(repeating_delimited(rulearg, COMMA)), EQUAL,
+    rulename, Optional(repeating_delimited(rulearg, COMMA)), EQUAL, 
     name="Rule Declaration"
 )
 
 grammarrule = Rule(
-    ruledecl, rules,
+    ruledecl, rules, Action(lambda decl, rules: AstRuleDecl(decl[0], decl[1], rules)),
     name="Grammar Rule"
 )
 
-toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), skip=space_and_comments, name="Top Level")
+toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), 
+        Action(lambda code, rules: AstFile(code, rules)),
+    skip=space_and_comments, name="Top Level")
 
 ###################### <<< ACTIONS >>>
 
@@ -267,10 +290,6 @@ if __name__ == "__main__":
         f = open(a, "r")
         s = f.read()
         f.close()
-        adv, res = parser.partial_parse(s)
-        left = s[adv:]
-        print(res)
-        if left:
-            print("\n---\n")
-            print(left)
+        res = parser.parse(s)
+        print(res.to_python())
 

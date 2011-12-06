@@ -306,6 +306,14 @@ class ZeroOrMore(Repetition):
 
 
 
+class Exactly(Repetition):
+    """ A Repetition that wants to match excatly `times` elements.
+    """
+    
+    def __init__(self, times, *args, **kwargs):
+        super(Exactly, self).__imit__(times, times, *args, **kwargs)
+
+
 
 class Optional(Repetition):
     """ The equivalent of the ? in regular expressions.
