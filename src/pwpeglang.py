@@ -67,16 +67,16 @@ EOL = "\n"
 def balanced_inside(start, end, escape="\\"):
     return Either(
         # Recurse on a balanced expression
-        (start, R("balanced", start, end), end, Action(lambda s, m, e: s + m + e)),
+        (start, R("balanced_inside", start, end, escape), end, Action(lambda s, m, e: s + m + e)),
 
         # Or simply gobble up characters that neither start nor end or their
         # backslashed version.
-        re.compile("({0}|{1}|[^{2}{3}])*".format(escape + re.escape(start), escape + re.escape(end), re.escape(start), re.escape(end)))
+        re.compile("({0}|{1}|[^{2}{3}])+".format(escape + re.escape(start), escape + re.escape(end), re.escape(start), re.escape(end)))
     )
 
 @rule(skip=None)
 def balanced(start, end, escape="\\"):
-    return start, balanced_inside(start, end, escape), end
+    return start, ZeroOrMore(balanced_inside(start, end, escape)), end, Action(lambda s, l, e: (s, "".join(l), e))
 
 @rule
 def delimited(char, escape='\\'):
@@ -194,7 +194,7 @@ rulename = Rule(identifier, Optional(balanced_paren),
 real_rule = Rule(Either(
     regexp,
     string,
-    rulename,
+    Rule(rulename, Action(lambda x: AstRuleCall(x))),
     external_rule,
     R("either_rule")
 ), Action(lambda r: AstRuleSingle(r)),

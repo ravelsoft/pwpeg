@@ -436,18 +436,20 @@ class R(Rule):
         c = inspect.currentframe()
         self.gl = c.f_back.f_globals
         self.name = rulename
+        self.args = args
+        self.kwargs = kwargs
 
 
     def parse(self, *args, **kwargs):
         raise Exception("This method should never be called directly.")
 
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self):
         """ Return the result of calling the real rule after fetching
             it from its global object.
         """
 
-        return self.gl[self.name](*args, **kwargs)
+        return self.gl[self.name](*self.args, **self.kwargs)
 
 def analyse_frames(f, i=[0]):
     if f.f_back:

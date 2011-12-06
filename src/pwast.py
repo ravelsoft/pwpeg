@@ -77,6 +77,24 @@ class AstRuleSingle(AstNode):
         return res
 
 
+class AstRuleCall(AstRuleSingle):
+    def to_python(self, ctx, indent):
+        rulename = self.rule
+
+        paren_start = self.rule.find("(")
+        
+        if paren_start != -1:
+            rulename = self.rule[:paren_start]
+
+        if not rulename in ctx["seen_rules"]:
+            if paren_start != -1:
+                self.rule = "R(\'{0}\', {1}".format(rulename, self.rule[paren_start + 1:])
+            else:
+                self.rule = "R(\'{0}\')".format(rulename)
+
+        return super(AstRuleCall, self).to_python(ctx, indent)
+
+
 class AstCode(AstNode):
     def __init__(self, code):
         self.code = code
@@ -204,6 +222,7 @@ class AstRuleDecl(AstNode):
             if actions:
                 res.insert(0, "\n\n".join(actions))
 
+        ctx["seen_rules"].append(self.name)
         return "\n".join(res)
             
 
@@ -219,6 +238,7 @@ class AstFile(AstNode):
 
     def to_python(self, ctx=dict(), indent=0):
         ctx["last_action"] = [0]
+        ctx["seen_rules"] = []
 
         return "\n\n".join(["from pwpeg import *",
             self.code,
