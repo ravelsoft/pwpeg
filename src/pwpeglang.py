@@ -5,27 +5,10 @@
 import re
 
 from pwpeg import *
+from helpers import *
 from pwast import *
 
 re_regexp = re.compile("/(\\/|[^/])+/[idsmlux]+")
-re_lead = re.compile("^[ \t]+")
-
-class LaterValue(object):
-
-    def __init__(self, default):
-        self.default = default
-
-    def set_if_unset(self, value):
-        if not self.isset():
-            self._value = value
-
-    def value(self):
-        if not self.isset():
-            return self.default
-        return self._value
-
-    def isset(self):
-        return "_value" in self.__dict__
 
 def concat(arr):
     if arr is None or len(arr) == 0:
@@ -61,31 +44,6 @@ QUESTION = "?"
 PLUS = "+"
 EOL = "\n"
 
-#############################
-
-@rule
-def balanced_inside(start, end, escape="\\"):
-    return Either(
-        # Recurse on a balanced expression
-        (start, R("balanced_inside", start, end, escape), end, Action(lambda s, m, e: s + m + e)),
-
-        # Or simply gobble up characters that neither start nor end or their
-        # backslashed version.
-        re.compile("({0}|{1}|[^{2}{3}])+".format(escape + re.escape(start), escape + re.escape(end), re.escape(start), re.escape(end)))
-    )
-
-@rule(skip=None)
-def balanced(start, end, escape="\\"):
-    return start, ZeroOrMore(balanced_inside(start, end, escape)), end, Action(lambda s, l, e: (s, "".join(l), e))
-
-@rule
-def delimited(char, escape='\\'):
-    return char, re.compile("({0}|[^{1}])*".format(escape + re.escape(char), re.escape(char))), char
-
-@rule
-def repeating_delimited(rule, delim):
-    return rule, ZeroOrMore(delim, rule, Action(lambda _1, _2: _2)), Action(lambda first, n: [first] + n)
-
 ############################
 
 space_and_comments = re.compile("(\s+|#.*$)*", re.M)
@@ -101,45 +59,6 @@ regexp = Rule(re_regexp)
 number = Rule(re.compile("-?[0-9]+"), Action(lambda n: int(n)))
 
 starting_code = Rule("%%", re.compile("((?!%%).)*", re.DOTALL), "%%", Action(lambda b, t, e: t))
-
-#################################################################################
-
-@rule
-def leading_indent(indent):
-
-    if indent.isset():
-        # Since we know how many leading spaces our indentation is at,
-        # we want to match its exact number.
-        pattern = "[ \t]{{{0}}}".format(indent.value())
-        return re.compile(pattern)
-
-    # The first time around, we eat all the spaces.
-    # Only after does this rule only eat the leading spaces.
-    return re_lead
-
-
-@rule
-def indented_line(indent):
-
-    def action_set_indentation(lead, line, opt):
-        ind = len(lead)
- 
-        indent.set_if_unset(ind)
-
-        # the empty lines are just squizzed out of the parsed text.
-        return line
-
-    return leading_indent(indent), to_eol, Optional(empty_lines), Action(action_set_indentation)
-
-
-@rule(skip=None)
-def indented_block(indentation=LaterValue(1)):
-
-    def _action_concatenate(first_line, others):
-        lst = [first_line] + others
-        return "\n".join(lst)
-
-    return indented_line(indentation), ZeroOrMore(indented_line(indentation)), Action(_action_concatenate)
 
 ##############################################################################################
 
@@ -219,13 +138,13 @@ match_rule = Rule(Either("!", "&"), real_rule, Optional(repetition),
     name="Matching Rule")
 
 either_rule = Rule(
-    LBRACKET, repeating_delimited(R("rules"), PIPE), RBRACKET, Action(lambda _1, rules, _2: AstRuleEither(rules))
+    LBRACKET, OneOrMoreSeparated(R("rules"), PIPE), RBRACKET, Action(lambda _1, rules, _2: AstRuleEither(rules))
 )
 
 rule_repeat = Rule(OneOrMore(Either(match_rule, full_rule, predicate)), Optional(action), Action(lambda x, a: AstRuleGroup(x, a)))
 
 rules = Rule(
-    repeating_delimited(rule_repeat, PIPE), Action(lambda x: AstRuleEither(x)),
+    OneOrMoreSeparated(rule_repeat, PIPE), Action(lambda x: AstRuleEither(x)),
     name="Rules+"
 )
 
@@ -236,7 +155,7 @@ rulearg = Rule(identifier, real_rule,
     name="Rule Argument")
 
 ruledecl = Rule(
-    rulename, Optional(repeating_delimited(rulearg, COMMA)), EQUAL, 
+    rulename, Optional(OneOrMoreSeparated(rulearg, COMMA)), EQUAL, 
     name="Rule Declaration"
 )
 
