@@ -100,7 +100,7 @@ regexp = Rule(re_regexp)
 
 number = Rule(re.compile("-?[0-9]+"), Action(lambda n: int(n)))
 
-starting_code = Rule("%%", re.compile("((?!%%).)*"), "%%", Action(lambda b, t, e: t))
+starting_code = Rule("%%", re.compile("((?!%%).)*", re.DOTALL), "%%", Action(lambda b, t, e: t))
 
 #################################################################################
 
