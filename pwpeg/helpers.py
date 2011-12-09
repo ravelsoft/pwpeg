@@ -43,18 +43,22 @@ def balanced(start, end, escape="\\"):
     """
     """
 
+    balanced_inside = None
+
     @rule
     def __balanced_inside():
         return Either(
             # Recurse on a balanced expression
-            (start, R("balanced_inside", start, end, escape), end, Action(lambda s, m, e: s + m + e)),
+            (start, balanced_inside, end, Action(lambda s, m, e: s + m + e)),
 
             # Or simply gobble up characters that neither start nor end or their
             # backslashed version.
             all_but([start, end])
         )
 
-    return start, ZeroOrMore(__balanced_inside), end, Action(lambda s, l, e: (s, "".join(l), e))
+    balanced_inside = __balanced_inside
+
+    return start, ZeroOrMore(balanced_inside), end, Action(lambda s, l, e: (s, "".join(l), e))
 
 @rule
 def delimited(char, escape='\\'):

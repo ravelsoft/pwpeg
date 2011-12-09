@@ -19,7 +19,7 @@ let b:current_syntax = ''
 unlet b:current_syntax
 syntax include @PYTHON syntax/python.vim
 
-syn match operator    /{\|}\|<\|>\|&\|!\||\|\[\|\]\|+\|\*\|,/
+syn match operator    /{\|}\|<\|>\|&\|!\||\|\[\|\]\|+\|\*\|,\|?/
 
 syn match commentRule "#.*$" contains=@NoSpell
 
@@ -48,7 +48,7 @@ syn match   string      "/\(\\/\|[^/]\)*/[a-z]*"
 syn match   inline      "$([^)]\+)" contains=@PYTHON
 
 syn match   rule        '[a-zA-Z_][a-zA-Z0-9_]*\s*\(([^)]*)\)\?\s\([^=]\)*\s*=' contains=string
-syn match   pwlabel       '[[:alnum:]]\+:' contains=@NoSpell
+syn match   pwlabel       '[[:alnum:]_]\+:' contains=@NoSpell
 
 "syn region  valueRule  start=+="+ms=s+1 end=+"+ skip=+\\"+ contained contains=@NoSpell,escapedRule,bigTagRule,variableRule
 "syn region  valueRule  start=+='+ end=+'+ skip=+\\"+ contained contains=@NoSpell,escapedRule,bigTagRule,variableRule

@@ -1,3 +1,5 @@
+import helpers
+import pwpeg
 
 class AstNode(object):
     def __repr__(self):
@@ -217,7 +219,7 @@ class AstRuleDecl(AstNode):
 
             res.append(result)
         else:
-            res.append("{0} = Rule({1})".format(self.name, self.rules.to_python(ctx, indent)))
+            res.append("{0} = Rule({1}, name='{0}')".format(self.name, self.rules.to_python(ctx, indent)))
 
             if actions:
                 res.insert(0, "\n\n".join(actions))
@@ -238,10 +240,13 @@ class AstFile(AstNode):
 
     def to_python(self, ctx=dict(), indent=0):
         ctx["last_action"] = [0]
-        ctx["seen_rules"] = []
+        ctx["seen_rules"] = [n for n in helpers.__dict__.keys()] + \
+            [n for n in pwpeg.__dict__.keys()]
 
-        return "\n\n".join(["from pwpeg import *",
-            self.code,
+        return "\n".join(["import re\n",
+            "from pwpeg import *",
+            "from pwpeg.helpers import *",
+            "\n" + self.code,
             "\n\n".join([r.to_python(ctx, indent) for r in self.rules])
         ])
 

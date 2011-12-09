@@ -9,4 +9,5 @@ setup(name='PwPEG',
       author_email='christophe.eymard@ravelsoft.com',
       url='http://pwpeg.github.com/',
       packages=['pwpeg'],
+      scripts=['scripts/pwpeg']
      )

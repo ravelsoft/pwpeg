@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
     @author Christophe Eymard <christophe.eymard@ravelsoft.com>
 """
@@ -5,8 +6,8 @@
 import re
 
 from pwpeg import *
-from helpers import *
-from pwast import *
+from pwpeg.helpers import *
+from pwpeg.pwast import *
 
 re_regexp = re.compile("/(\\/|[^/])+/[idsmlux]+")
 
@@ -134,7 +135,7 @@ full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, Optional(repeti
     name="Full Rule")
 
 match_rule = Rule(Either("!", "&"), real_rule, Optional(repetition),
-        Action(lambda sym, rule, mod: rule.set_modifier(mod).set_matching(sym)),
+        Action(lambda sym, rule, rep: rule.set_repetition(rep).set_matching(sym)),
     name="Matching Rule")
 
 either_rule = Rule(
@@ -186,7 +187,7 @@ def _regexp_action(contents, flags):
     if flags:
         fs = []
         for f in flags:
-            fs.append("re.{0}".format(f.toupper()))
+            fs.append("re.{0}".format(f.upper()))
         fs = " & ".join(fs)
         args.append(fs)
 
