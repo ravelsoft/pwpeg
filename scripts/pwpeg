@@ -103,7 +103,7 @@ external_rule = Either(
 #######################################################
 
 predicate = Rule(
-    Either(AMPS, EXCL), balanced_braces
+    balanced_braces, Action(lambda p: AstPredicate(p))
 )
 
 
@@ -151,17 +151,17 @@ rules = Rule(
 
 ####################### Rule declaration ###########################
 
-rulearg = Rule(identifier, real_rule, 
+ruleskip = Rule("skip", real_rule, 
         Action(lambda id, rule: (id, rule)),
     name="Rule Argument")
 
 ruledecl = Rule(
-    rulename, Optional(OneOrMoreSeparated(rulearg, COMMA)), EQUAL, 
+    rulename, Optional("skip", real_rule, Action(lambda _, rule: rule)), EQUAL, 
     name="Rule Declaration"
 )
 
 grammarrule = Rule(
-    ruledecl, rules, Action(lambda decl, rules: AstRuleDecl(decl[0], decl[1], rules)),
+    ruledecl, rules, Action(lambda decl, rules: AstRuleDecl(decl[0], rules, skip=decl[1])),
     name="Grammar Rule"
 )
 
@@ -170,13 +170,6 @@ toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule),
     skip=space_and_comments, name="Top Level")
 
 ###################### <<< ACTIONS >>>
-
-@predicate.set_action
-def _predicate_action(op, braced_code):
-    code = braced_code[1].strip()
-    if op == EXCL:
-        code = "not({0})".format(code)
-    return AstPredicate(code)
 
 @regexp.set_action
 def _regexp_action(contents, flags):

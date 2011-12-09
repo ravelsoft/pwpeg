@@ -188,10 +188,10 @@ class AstRuleEither(AstRuleGroup):
 
 
 class AstRuleDecl(AstNode):
-    def __init__(self, name, args, rules):
-        self.args = args
+    def __init__(self, name, rules, skip=None):
         self.name = name
         self.rules = rules
+        self.skip = skip
 
     def __repr__(self):
         args = ""
@@ -206,9 +206,11 @@ class AstRuleDecl(AstNode):
         ctx = dict(**ctx)
         actions = ctx["actions"] = []
 
+        skip = ("skip=" + self.skip.to_python(ctx, indent) if self.skip else "")
+
         # The rule has some parameters.
         if self.name.endswith(")"):
-            res.append("@rule({0})".format(", ".join(["{0}={1}".format(name, value) for name, value in self.args])))
+            res.append("@rule({0})".format(skip))
             res.append("def {0}:".format(self.name))
 
             result = "    return {1}".format(self.name, self.rules.to_python(ctx, indent + 4))
@@ -219,7 +221,8 @@ class AstRuleDecl(AstNode):
 
             res.append(result)
         else:
-            res.append("{0} = Rule({1}, name='{0}')".format(self.name, self.rules.to_python(ctx, indent)))
+            if skip: skip = ", {0}".format(skip)
+            res.append("{0} = Rule({1}, name='{0}'{2})".format(self.name, self.rules.to_python(ctx, indent), skip))
 
             if actions:
                 res.insert(0, "\n\n".join(actions))
@@ -241,7 +244,7 @@ class AstFile(AstNode):
     def to_python(self, ctx=dict(), indent=0):
         ctx["last_action"] = [0]
         ctx["seen_rules"] = [n for n in helpers.__dict__.keys()] + \
-            [n for n in pwpeg.__dict__.keys()]
+            [n for n in pwpeg.__dict__.keys()] + ["None"]
 
         return "\n".join(["import re\n",
             "from pwpeg import *",
