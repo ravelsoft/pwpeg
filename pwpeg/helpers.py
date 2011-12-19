@@ -21,22 +21,25 @@ class LaterValue(object):
         return "_value" in self.__dict__
 
 @rule
-def all_but(but, escape="\\", re_flags=0):
+def all_but(but, escape="\\"):
     """
     """
 
     if not isinstance(but, list):
         but = [but]
 
-    but = [re.escape(a) for a in but]
+    _not = "|".join([re.escape(b) for b in but])
 
     if escape:
-        escaped = [escape + a for a in but]
-        regexp = "({0}|[^{1}])+".format("|".join(escaped), "".join(but))
+        escaped = [escape + re.escape(a) for a in but]
     else:
-        regexp = "[^{0}]+".format("".join(but))
+        escaped = []
 
-    return re.compile(regexp, re_flags)
+    escaped.append(".")
+    _valid = "|".join(escaped)
+    regexp = "((?!{_not})({_valid}))+".format(_not=_not, _valid=_valid)
+
+    return re.compile(regexp, re.DOTALL)
 
 @rule(skip=None)
 def balanced(start, end, escape="\\"):
@@ -73,14 +76,15 @@ def __repeating_separated(rules, separator, at_least, at_most):
     """
 
     def __action(first, rest):
-        return [first] + rest
+        rest.insert(0, first)
+        return rest
 
     if at_most == -1:
         # This is just so that it is equal to -1 in the end.
         at_most = 0
 
     if at_least == 0:
-        return Optional(rules, Repetition(0, at_most - 1, separator, rules, Action(lambda _1, r: r), Action(__action)))
+        return Optional(rules, Repetition(0, at_most - 1, separator, rules, Action(lambda _1, r: r)), Action(__action))
 
     return rules, Repetition(at_least - 1, at_most - 1, separator, rules, Action(lambda _1, _2: _2)), Action(__action)
 
