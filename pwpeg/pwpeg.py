@@ -50,7 +50,7 @@ class Results(list):
 
     def __repr__(self):
         return "{0}:{1}".format(self.name, super(Results, self).__repr__())
-        
+
 
 
 class Rule(object):
@@ -154,7 +154,7 @@ class Rule(object):
 
         if not isinstance(rules, tuple):
             rules = (rules,)
-        
+
         for i, r in enumerate(rules):
             subrule_result = None
 
@@ -230,10 +230,10 @@ class Rule(object):
 
         return advanced, results
 
-    
+
     def set_action(self, fn):
         """ Add an action function to the rules.
-            
+
             This is to be used when the processor function is not directly given to
             the rule in its constructor.
         """
@@ -242,7 +242,7 @@ class Rule(object):
         return fn
 
     def __repr__(self, args=""):
-        return "<{0}{1}>".format(self.name, args)
+        return "<{0}{1}>".format(getattr(self, "name", self.__class__.__name__), args)
 
 
 
@@ -309,7 +309,7 @@ class ZeroOrMore(Repetition):
 class Exactly(Repetition):
     """ A Repetition that wants to match excatly `times` elements.
     """
-    
+
     def __init__(self, times, *args, **kwargs):
         super(Exactly, self).__imit__(times, times, *args, **kwargs)
 
@@ -351,7 +351,7 @@ class Not(Rule):
             # we return a result that won't advance the parser.
             return 0, IgnoreResult
         raise SyntaxError("Matched input that should not have been matched")
-                
+
 
 
 class And(Rule):
@@ -364,7 +364,7 @@ class And(Rule):
         It does *not* advance the parser position.
     """
 
-    
+
     def parse(self, text, rules, skip):
         # Try to parse our rules
         super(And, self).parse(text, rules, skip)
@@ -421,8 +421,8 @@ class R(Rule):
 
         What it does is by using the `inspect` module, it stores a reference
         to the module where it is instanciated as well as the name of the rule
-        in said module. 
-        
+        in said module.
+
         When the rule is to be used for parsing, it fetches it from the module
         and executes it.
 
@@ -430,7 +430,7 @@ class R(Rule):
         defined later in the code, or even the current rule if we need
         recursion.
     """
-    
+
     def __init__(self, rulename, *args, **kwargs):
 
         c = inspect.currentframe()
@@ -449,6 +449,8 @@ class R(Rule):
             it from its global object.
         """
 
+        if not self.name in self.gl:
+            raise Exception("The rule {0} is not defined in this scope.".format(self.name))
         return self.gl[self.name](*self.args, **self.kwargs)
 
 def analyse_frames(f, i=[0]):

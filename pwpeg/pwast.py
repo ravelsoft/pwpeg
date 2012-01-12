@@ -195,7 +195,7 @@ class AstRuleDecl(AstNode):
 
     def __repr__(self):
         args = ""
-        if self.args:
+        if "args" in self.__dict__ and self.args:
             args = ", ".join([o[0] for o in self.args])
             args = "({0})".format(args)
         return "<{0}{1}> {2}".format(self.name, args, self.rules)

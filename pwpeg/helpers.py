@@ -21,7 +21,7 @@ class LaterValue(object):
         return "_value" in self.__dict__
 
 @rule
-def all_but(but, escape="\\"):
+def AllBut(but, escape="\\"):
     """
     """
 
@@ -42,7 +42,7 @@ def all_but(but, escape="\\"):
     return re.compile(regexp, re.DOTALL)
 
 @rule(skip=None)
-def balanced(start, end, escape="\\"):
+def Balanced(start, end, escape="\\"):
     """
     """
 
@@ -56,7 +56,7 @@ def balanced(start, end, escape="\\"):
 
             # Or simply gobble up characters that neither start nor end or their
             # backslashed version.
-            all_but([start, end])
+            AllBut([start, end])
         )
 
     balanced_inside = __balanced_inside
@@ -64,11 +64,11 @@ def balanced(start, end, escape="\\"):
     return start, ZeroOrMore(balanced_inside), end, Action(lambda s, l, e: (s, "".join(l), e))
 
 @rule
-def delimited(char, escape='\\'):
+def DelimitedBy(char, escape='\\'):
     """
     """
 
-    return char, all_but(char, escape), char
+    return char, AllBut(char, escape), char
 
 @rule
 def __repeating_separated(rules, separator, at_least, at_most):
@@ -109,7 +109,7 @@ to_eol = Rule(re.compile("[^\n]*", re.M))
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
 @rule(skip=None)
-def indented_block(indentation=1):
+def IndentedBlock(indentation=1):
     """
     """
 
@@ -134,7 +134,7 @@ def indented_block(indentation=1):
 
         def action_set_indentation(lead, line, opt):
             ind = len(lead)
-     
+
             indent.set_if_unset(ind)
 
             # the empty lines are just squizzed out of the parsed text.
@@ -148,3 +148,37 @@ def indented_block(indentation=1):
         return "\n".join(lst)
 
     return __indented_line(indent), ZeroOrMore(__indented_line(indent)), Action(_action_concatenate)
+
+@rule
+def LeftAssociative(op_rule, sub_rule, action=None):
+
+    def _rec(leftmost, lst, idx=-1):
+        """ Recursive function to make what we parsed as a left-associative succession of operators.
+        """
+
+        return action(
+            _rec(leftmost, lst, idx - 1),
+            lst[idx][0],
+            lst[idx][1]) if lst and idx >= -len(lst) else action(leftmost)
+
+    if action:
+        return Rule(sub_rule, ZeroOrMore(op_rule, sub_rule), Action(_rec))
+    else:
+        return Rule(sub_rule, ZeroOrMore(op_rule, sub_rule))
+
+@rule
+def RightAssociative(op_rule, sub_rule, action=None):
+
+    def _act(left, opt, idx=0):
+        """ Recursive function to make what we parsed as a left-associative succession of operators.
+        """
+
+        return action(left) if not opt else action(left, opt[0], opt[1])
+
+    self_recurse = R("RightAssociative", op_rule, sub_rule, action)
+
+    if action:
+        return Rule(sub_rule, Optional(op_rule, self_recurse), Action(_act))
+    else:
+        return Rule(sub_rule, Optional(op_rule, self_recurse))
+

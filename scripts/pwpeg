@@ -9,7 +9,29 @@ from pwpeg import *
 from pwpeg.helpers import *
 from pwpeg.pwast import *
 
-re_regexp = re.compile("/(\\/|[^/])+/[idsmlux]+")
+re_regexp = re.compile("/(\\/|[^/])+/([idsmlux]+)?")
+
+def _regexp_action(contents, flags):
+    args = []
+
+    args.append('\'' + contents.replace('\'', '\\\'') + '\'')
+
+    if flags:
+        fs = []
+        for f in flags:
+            fs.append("re.{0}".format(f.upper()))
+        fs = " & ".join(fs)
+        args.append(fs)
+
+    return "re.compile({0})".format(", ".join(args))
+
+def replace_regexps(t):
+    # print t
+    res = re_regexp.sub(lambda m: _regexp_action(m.group(0)[1:-1], m.group(2)), t)
+    #import sys
+    #sys.exit()
+    # print res
+    return res
 
 def concat(arr):
     if arr is None or len(arr) == 0:
@@ -17,7 +39,7 @@ def concat(arr):
 
     res = []
     for a in arr:
-        if isinstance(a, list): 
+        if isinstance(a, list):
             res.append(_concat(a))
         else:
             res.append(a)
@@ -55,42 +77,40 @@ to_eol = Rule(re.compile("[^\n]*", re.M))
 
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
-regexp = Rule(re_regexp)
-
 number = Rule(re.compile("-?[0-9]+"), Action(lambda n: int(n)))
 
 starting_code = Rule("%%", re.compile("((?!%%).)*", re.DOTALL), "%%", Action(lambda b, t, e: t))
 
 ##############################################################################################
 
-balanced_paren      = balanced("(", ")")
-balanced_braces     = balanced("{", "}")
-balanced_brackets   = balanced("[", "]")
+balanced_paren      = Balanced("(", ")")
+balanced_braces     = Balanced("{", "}")
+balanced_brackets   = Balanced("[", "]")
 
 # Re-concatenate the string.
 string = Either(
-    (delimited('\''), Action(lambda x: "".join(x))),
-    (delimited('"'), Action(lambda x: "".join(x))),
+    (DelimitedBy('\''), Action(lambda x: "".join(x))),
+    (DelimitedBy('"'), Action(lambda x: "".join(x))),
     # Backslash quoted string
-    (re.compile("\\\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s[1:].replace('\'', '\\\'') + "'"))
+    (re.compile("\\\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s[1:].replace('\'', '\\\'').replace('\\', '\\\\') + "'"))
 )
 
 regexp = Rule(
-    delimited('/'), Optional(re.compile('[idsmlux]+')),
+    DelimitedBy('/'), Optional(re.compile('[idsmlux]+')), Action(lambda d, f: _regexp_action(d[1], f)),
     skip=None
 )
 
 action = Either(
-    Rule(balanced(LBRACE, RBRACE), 
+    Rule(Balanced(LBRACE, RBRACE),
             Action(lambda b: b[1].strip()),
         name="Brace Action"),
 
-    Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, indented_block,
+    Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, IndentedBlock,
             Action(lambda sp, arrow, more_space, eol, code: code),
         skip=None, name="Multi Line Action"),
 
-    Rule(ARROW, to_eol, 
-            Action(lambda arrow, line: line.strip()), 
+    Rule(ARROW, to_eol,
+            Action(lambda arrow, line: line.strip()),
         skip=None, name="Single Line Action")
 )
 
@@ -103,12 +123,12 @@ external_rule = Either(
 #######################################################
 
 predicate = Rule(
-    balanced_braces, Action(lambda p: AstPredicate(p))
+    balanced_braces, Action(lambda p: AstPredicate(p[1]))
 )
 
 
-rulename = Rule(identifier, Optional(balanced_paren), 
-    Action(lambda i, b: i + concat(b)), 
+rulename = Rule(identifier, Optional(balanced_paren),
+    Action(lambda i, b: i + replace_regexps(concat(b))),
     name="Rule Name")
 
 real_rule = Rule(Either(
@@ -151,12 +171,12 @@ rules = Rule(
 
 ####################### Rule declaration ###########################
 
-ruleskip = Rule("skip", real_rule, 
+ruleskip = Rule("skip", real_rule,
         Action(lambda id, rule: (id, rule)),
     name="Rule Argument")
 
 ruledecl = Rule(
-    rulename, Optional("skip", real_rule, Action(lambda _, rule: rule)), EQUAL, 
+    rulename, Optional("skip", real_rule, Action(lambda _, rule: rule)), EQUAL,
     name="Rule Declaration"
 )
 
@@ -165,27 +185,9 @@ grammarrule = Rule(
     name="Grammar Rule"
 )
 
-toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule), 
+toplevel = Rule(Optional(starting_code), OneOrMore(grammarrule),
         Action(lambda code, rules: AstFile(code, rules)),
     skip=space_and_comments, name="Top Level")
-
-###################### <<< ACTIONS >>>
-
-@regexp.set_action
-def _regexp_action(contents, flags):
-    args = []
-
-    args.append('\'' + contents[1].replace('\'', '\\\'') + '\'')
-
-    if flags:
-        fs = []
-        for f in flags:
-            fs.append("re.{0}".format(f.upper()))
-        fs = " & ".join(fs)
-        args.append(fs)
-
-    return "re.compile({0})".format(", ".join(args))
-
 
 #####################################################
 
