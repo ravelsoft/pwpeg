@@ -100,13 +100,15 @@ regexp = Rule(
     skip=None
 )
 
+re_anything_inline = Rule(re.compile("[^\n]*", re.M))
+
 action = Either(
     Rule(Balanced(LBRACE, RBRACE),
             Action(lambda b: b[1].strip()),
         name="Brace Action"),
 
-    Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, IndentedBlock,
-            Action(lambda sp, arrow, more_space, eol, code: code),
+    Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, IndentedBlock(re_anything_inline),
+            Action(lambda sp, arrow, more_space, eol, code: "\n".join([t[0] + t[1] for t in code])),
         skip=None, name="Multi Line Action"),
 
     Rule(ARROW, to_eol,
@@ -159,11 +161,11 @@ match_rule = Rule(Either("!", "&"), real_rule, Optional(repetition),
     name="Matching Rule")
 
 either_rule = Rule(
-    LBRACKET, OneOrMoreSeparated(R("rules"), PIPE), RBRACKET, 
+    LBRACKET, OneOrMoreSeparated(R("rules"), PIPE), RBRACKET,
         Action(lambda _1, rules, _2: AstRuleEither(rules))
 )
 
-rule_repeat = Rule(OneOrMore(Either(match_rule, full_rule, predicate)), Optional(action), 
+rule_repeat = Rule(OneOrMore(Either(match_rule, full_rule, predicate)), Optional(action),
     Action(lambda x, a: AstRuleGroup(x, a)))
 
 rules = Rule(

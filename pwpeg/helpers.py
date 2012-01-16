@@ -105,18 +105,18 @@ def RepetitionSeparated(at_least, at_most, rules, sep):
     return __repeating_separated(rules, sep, at_least, at_most)
 
 re_lead = re.compile("^[ \t]+")
-to_eol = Rule(re.compile("[^\n]*", re.M))
+to_eol = Rule(re.compile("[ \t]*"))
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
 @rule(skip=None)
-def IndentedBlock(indentation=1):
+def IndentedBlock(grammar_rule, indentation=1):
     """
     """
 
     indent = LaterValue(indentation)
 
     @rule
-    def __leading_indent(indent):
+    def __leading_indent():
 
         if indent.isset():
             # Since we know how many leading spaces our indentation is at,
@@ -130,24 +130,19 @@ def IndentedBlock(indentation=1):
 
 
     @rule
-    def __indented_line(indent):
+    def __indented_line():
 
-        def action_set_indentation(lead, line, opt):
+        def action_set_indentation(lead, line, eol, opt):
             ind = len(lead)
 
             indent.set_if_unset(ind)
 
             # the empty lines are just squizzed out of the parsed text.
-            return line
+            return lead, line
 
-        return __leading_indent(indent), to_eol, Optional(empty_lines), Action(action_set_indentation)
+        return __leading_indent(), grammar_rule, Optional(to_eol), Optional(empty_lines), Action(action_set_indentation)
 
-
-    def _action_concatenate(first_line, others):
-        lst = [first_line] + others
-        return "\n".join(lst)
-
-    return __indented_line(indent), ZeroOrMore(__indented_line(indent)), Action(_action_concatenate)
+    return OneOrMore(__indented_line)
 
 def la_tree_from_list_leftmost(leftmost, lst, action, idx=-1):
     return action(
