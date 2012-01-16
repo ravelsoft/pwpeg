@@ -21,7 +21,8 @@ syntax include @PYTHON syntax/python.vim
 
 syn match operator    /{\|}\|<\|>\|&\|!\||\|\[\|\]\|+\|\*\|,\|?/
 
-syn match commentRule "#.*$" contains=@NoSpell
+syn match commentRule "#.*$" contains=@NoSpell,Todo
+syn keyword Todo FIXME TODO XXX contained
 
 syn match repetition /<\s*[0-9]\+\s*\(,\s*[0-9]\+\)\?\s*>/ contains=number,operator
 syn match number /[0-9]\+/ contained

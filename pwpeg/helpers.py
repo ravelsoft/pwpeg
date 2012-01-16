@@ -149,20 +149,30 @@ def IndentedBlock(indentation=1):
 
     return __indented_line(indent), ZeroOrMore(__indented_line(indent)), Action(_action_concatenate)
 
+def la_tree_from_list_leftmost(leftmost, lst, action, idx=-1):
+    return action(
+        la_tree_from_list_leftmost(leftmost, lst, action, idx - 1),
+        lst[idx][0],
+        lst[idx][1]) if lst and idx >= -len(lst) else action(leftmost)
+
+def ra_tree_from_list_rightmost(rightmost, lst, action, idx=0):
+    """
+    """
+
+    return action(lst[idx][0],
+                  lst[idx][1],
+                  ra_tree_from_list_rightmost(rightmost, lst, action, idx + 1)) if lst and idx < len(lst) else action(rightmost, None, None)
+
 @rule
 def LeftAssociative(op_rule, sub_rule, action=None):
 
-    def _rec(leftmost, lst, idx=-1):
+    def reverse(leftmost, lst, idx=-1):
         """ Recursive function to make what we parsed as a left-associative succession of operators.
         """
-
-        return action(
-            _rec(leftmost, lst, idx - 1),
-            lst[idx][0],
-            lst[idx][1]) if lst and idx >= -len(lst) else action(leftmost)
+        return la_tree_from_list_leftmost(leftmost, lst, action, idx)
 
     if action:
-        return Rule(sub_rule, ZeroOrMore(op_rule, sub_rule), Action(_rec))
+        return Rule(sub_rule, ZeroOrMore(op_rule, sub_rule), Action(reverse))
     else:
         return Rule(sub_rule, ZeroOrMore(op_rule, sub_rule))
 

@@ -84,7 +84,7 @@ class AstRuleCall(AstRuleSingle):
         rulename = self.rule
 
         paren_start = self.rule.find("(")
-        
+
         if paren_start != -1:
             rulename = self.rule[:paren_start]
 
@@ -108,7 +108,7 @@ class AstCode(AstNode):
             if len(self.code) > 10:
                 code += "..."
         return code
-        
+
 
 
 class AstRuleGroup(AstNode):
@@ -142,12 +142,12 @@ class AstRuleGroup(AstNode):
             if not getattr(r, "matching", None) and not isinstance(r, AstPredicate):
                 ctx["args"].append(getattr(r, "label", None) or "_{0}".format(i))
                 i += 1
-            
+
             res.append(r.to_python(ctx, indent))
 
         if self.action:
             if self.action.find('\n') is -1 and self.action.find('return') is -1:
-                res.append("Action(lambda {0}: {1})".format(", ".join(ctx["args"]), self.action))
+                res.append("Action(lambda {0}:{1})".format(", ".join(ctx["args"]), self.action))
             else:
                 action_name = "action_{0}".format(ctx["last_action"][0])
                 res.append("Action({0})".format(action_name))
@@ -182,7 +182,7 @@ class AstRuleEither(AstRuleGroup):
         normal_ind = " " * indent
         ind = " " * (indent + 4)
 
-        return "Either(\n{0}{1}\n{2})".format(ind, 
+        return "Either(\n{0}{1}\n{2})".format(ind,
             ",\n{0}".format(ind).join([r.to_python(ctx, indent + 4) for r in self.rules]),
             normal_ind)
 
@@ -229,7 +229,7 @@ class AstRuleDecl(AstNode):
 
         ctx["seen_rules"].append(self.name)
         return "\n".join(res)
-            
+
 
 
 class AstFile(AstNode):
