@@ -140,6 +140,8 @@ def IndentedBlock(grammar_rule, indentation=1):
             # the empty lines are just squizzed out of the parsed text.
             return lead, line
 
+        if indentation == 0:
+            return grammar_rule, Optional(to_eol), Optional(empty_lines), Action(lambda a, b, c: ("", a))
         return __leading_indent(), grammar_rule, Optional(to_eol), Optional(empty_lines), Action(action_set_indentation)
 
     return OneOrMore(__indented_line)
