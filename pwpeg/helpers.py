@@ -52,7 +52,7 @@ def Balanced(start, end, escape="\\"):
     def __balanced_inside():
         return Either(
             # Recurse on a balanced expression
-            (start, balanced_inside, end, Action(lambda s, m, e: s + m + e)),
+            (start, Optional(balanced_inside), end, Action(lambda s, m, e: s + (m or "") + e)),
 
             # Or simply gobble up characters that neither start nor end or their
             # backslashed version.
@@ -104,47 +104,87 @@ def ExactlySeparated(how_much, rules, sep):
 def RepetitionSeparated(at_least, at_most, rules, sep):
     return __repeating_separated(rules, sep, at_least, at_most)
 
+class MemoRule(Rule):
+    """ A rule that memorizes itself.
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.memorized = None
+        super(MemoRule, self).__init__(*args, **kwargs)
+
+    def parse(self, text, rules=None, skip=None):
+        """
+        """
+        if not self.memorized:
+            act = self.__dict__.get("action", None)
+            if act: del self.__dict__["action"]
+
+            if len(rules) > 0 and isinstance(rules[-1], Action):
+                act = rules[-1] # "command line" action has priority.
+                rules = rules[:-1]
+
+            adv, res = super(MemoRule, self).parse(text, rules, skip)
+            self.memorized = res
+
+            return (adv, act(*res)) if act else (adv, res)
+        else:
+            adv, res = super(MemoRule, self).parse(text, self.memorized, skip)
+            return adv, res
+
+re_more_indent = re.compile("[ \t]+")
 re_lead = re.compile("^[ \t]+")
 to_eol = Rule(re.compile("[ \t]*"))
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
 @rule(skip=None)
-def IndentedBlock(grammar_rule, indentation=1):
+def IndentedBlock(grammar_rule, start=None):
     """
     """
-
-    indent = LaterValue(indentation)
-
-    @rule
-    def __leading_indent():
-
-        if indent.isset():
-            # Since we know how many leading spaces our indentation is at,
-            # we want to match its exact number.
-            pattern = "[ \t]{{{0}}}".format(indent.value())
-            return re.compile(pattern)
-
-        # The first time around, we eat all the spaces.
-        # Only after does this rule only eat the leading spaces.
-        return re_lead
-
+    start = start or MemoRule(re.compile("[ \t]*"))
 
     @rule
-    def __indented_line():
+    def indented_line():
+        return start, grammar_rule, Optional(empty_lines)
 
-        def action_set_indentation(lead, line, eol, opt):
-            ind = len(lead)
+    return OneOrMore(indented_line)
 
-            indent.set_if_unset(ind)
-
-            # the empty lines are just squizzed out of the parsed text.
-            return lead, line
-
-        if indentation == 0:
-            return grammar_rule, Optional(to_eol), Optional(empty_lines), Action(lambda a, b, c: ("", a))
-        return __leading_indent(), grammar_rule, Optional(to_eol), Optional(empty_lines), Action(action_set_indentation)
-
-    return OneOrMore(__indented_line)
+#@rule(skip=None)
+#def IndentedBlock(grammar_rule, indentation=1):
+#    """
+#    """
+#
+#    indent = LaterValue(indentation)
+#
+#    @rule
+#    def __leading_indent():
+#
+#        if indent.isset():
+#            # Since we know how many leading spaces our indentation is at,
+#            # we want to match its exact number.
+#            pattern = "[ \t]{{{0}}}".format(indent.value())
+#            return re.compile(pattern)
+#
+#        # The first time around, we eat all the spaces.
+#        # Only after does this rule only eat the leading spaces.
+#        return re_lead
+#
+#
+#    @rule
+#    def __indented_line():
+#
+#        def action_set_indentation(lead, line, eol, opt):
+#            ind = len(lead)
+#
+#            indent.set_if_unset(ind)
+#
+#            # the empty lines are just squizzed out of the parsed text.
+#            return lead, line
+#
+#        if indentation == 0:
+#            return grammar_rule, Optional(to_eol), Optional(empty_lines), Action(lambda a, b, c: ("", a))
+#        return __leading_indent(), grammar_rule, Optional(to_eol), Optional(empty_lines), Action(action_set_indentation)
+#
+#    return OneOrMore(__indented_line)
 
 def la_tree_from_list_leftmost(leftmost, lst, action, idx=-1):
     return action(

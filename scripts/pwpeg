@@ -108,7 +108,7 @@ action = Either(
         name="Brace Action"),
 
     Rule(Optional(SPACE), ARROW, Optional(LINE_SPACE), EOL, IndentedBlock(re_anything_inline),
-            Action(lambda sp, arrow, more_space, eol, code: "\n".join([t[0] + t[1] for t in code])),
+            Action(lambda sp, arrow, more_space, eol, code: "\n".join([t[1] for t in code])),
         skip=None, name="Multi Line Action"),
 
     Rule(ARROW, to_eol,

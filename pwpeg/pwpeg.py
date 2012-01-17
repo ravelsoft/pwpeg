@@ -136,7 +136,7 @@ class Rule(object):
         """
 
         m = reg.match(text)
-        if m and len(m.group(0)) > 0:
+        if m:
             return len(m.group(0)), m.group(0)
         return False
 
@@ -496,23 +496,23 @@ class Parser(object):
             integrality of the text.
         """
 
-        try:
-            parse = self.toprule(*args, **kwargs)
-            result = parse(text)
-        except Exception as e:
-            etype, eobj, etb = sys.exc_info()
-            tb = etb
-            while tb.tb_next:
-                tb = tb.tb_next
-            print("The following exception was received:\n")
-            import traceback
-            traceback.print_tb(etb)
-            print(e)
+        #try:
+        parse = self.toprule(*args, **kwargs)
+        result = parse(text)
+        #except Exception as e:
+        #    etype, eobj, etb = sys.exc_info()
+        #    tb = etb
+        #    while tb.tb_next:
+        #        tb = tb.tb_next
+        #    print("The following exception was received:\n")
+        #    import traceback
+        #    traceback.print_tb(etb)
+        #    print(e)
 
-            print("\nWhile parsing, at this point:\n")
-            analyse_frames(tb.tb_frame)
+        #    print("\nWhile parsing, at this point:\n")
+        #    analyse_frames(tb.tb_frame)
 
-            return
+        #    return
 
         if result[0] != len(text):
             raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: {0}".format(text[result[0]:]))
