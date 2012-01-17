@@ -155,13 +155,18 @@ class Rule(object):
         if not isinstance(rules, tuple):
             rules = (rules,)
 
+        adv_before = 0
+        adv_after = 0
+
         for i, r in enumerate(rules):
             subrule_result = None
 
             if skip:
                 try:
                     adv, res = skip(text[advanced:])
+                    adv_before = advanced
                     advanced += adv
+                    adv_after = advanced
                 except SyntaxError as e:
                     # Nothing to skip.
                     pass
@@ -190,6 +195,9 @@ class Rule(object):
                     continue
 
             elif isinstance(r, Action):
+                # Restoring advancement before skip if skipping was the last thing we did.
+                if advanced == adv_after: advanced = adv_before
+
                 return advanced, r(*results)
 
             # Otherwise, this is just a predicate
@@ -221,6 +229,9 @@ class Rule(object):
 
             if sub_processed_result is not IgnoreResult:
                 results.append(sub_processed_result)
+
+        # Restoring advancement before skip if skipping was the last thing we did.
+        if advanced == adv_after: advanced = adv_before
 
         if "action" in self.__dict__:
             return advanced, self.action(*results)
