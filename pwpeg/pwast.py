@@ -1,5 +1,4 @@
-import helpers
-import pwpeg
+from . import helpers, pwpeg
 
 class AstNode(object):
     def __repr__(self):

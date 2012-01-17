@@ -1,5 +1,5 @@
 import re
-from pwpeg import *
+from .pwpeg import *
 
 class LaterValue(object):
     """
