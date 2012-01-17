@@ -109,7 +109,7 @@ to_eol = Rule(re.compile("[ \t]*"))
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
 @rule(skip=None)
-def IndentedBlock(grammar_rule, indentation=1):
+def IndentedBlock(grammar_rule, indentation=0):
     """
     """
 
@@ -121,7 +121,7 @@ def IndentedBlock(grammar_rule, indentation=1):
         if indent.isset():
             # Since we know how many leading spaces our indentation is at,
             # we want to match its exact number.
-            pattern = "[ \t]{{{0}}}".format(indent.value())
+            pattern = "[ \t]{{{0},}}".format(indent.value())
             return re.compile(pattern)
 
         # The first time around, we eat all the spaces.
