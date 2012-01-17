@@ -293,7 +293,7 @@ class Repetition(Rule):
             times += 1
 
         if _from != -1 and times < _from:
-            raise SyntaxError("Rule needs to be repeated at least {0} times".format(_from))
+            raise SyntaxError("Rule needs to be repeated at least {0} times ({1})".format(_from, self.name))
 
         return advance, results
 
