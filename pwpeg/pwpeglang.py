@@ -5,9 +5,9 @@
 
 import re
 
-from pwpeg import *
-from pwpeg.helpers import *
-from pwpeg.pwast import *
+from .pwpeg import *
+from .helpers import *
+from .pwast import *
 
 re_regexp = re.compile("/(\\/|[^/])+/([idsmlux]+)?")
 
