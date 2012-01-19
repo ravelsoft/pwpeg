@@ -92,7 +92,8 @@ string = Either(
     (DelimitedBy('\''), Action(lambda x: "".join(x))),
     (DelimitedBy('"'), Action(lambda x: "".join(x))),
     # Backslash quoted string
-    (re.compile("\\\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s[1:].replace('\'', '\\\'').replace('\\', '\\\\') + "'"))
+    (re.compile("\\\\[^ \t\n\[\]\|\)]+"), Action(lambda s: "'" + s[1:].replace('\'', '\\\'').replace('\\', '\\\\') + "'")),
+    skip=None
 )
 
 regexp = Rule(
