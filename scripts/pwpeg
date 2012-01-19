@@ -134,12 +134,13 @@ rulename = Rule(identifier, Optional(balanced_paren),
     Action(lambda i, b: i + replace_regexps(concat(b))),
     name="Rule Name")
 
+either_rule = ForwardRule()
 real_rule = Rule(Either(
     regexp,
     string,
     Rule(rulename, Action(lambda x: AstRuleCall(x))),
     external_rule,
-    R("either_rule")
+    either_rule
 ), Action(lambda r: AstRuleSingle(r)),
 name="Real Rule")
 
@@ -153,7 +154,10 @@ repetition = Rule(Either(
     ("<", Optional(number), ",", Optional(number), ">", Action(lambda l, fr, c, to, r: (-1 if fr is None else fr, -1 if to is None else to) ))
 ))
 
-full_rule = Rule(Optional(label), Not(R("ruledecl")), real_rule, Optional(repetition),
+ruledecl = ForwardRule()
+rules = ForwardRule()
+
+full_rule = Rule(Optional(label), Not(ruledecl), real_rule, Optional(repetition),
         Action(lambda label, rule, rep: rule.set_label(label).set_repetition(rep)),
     name="Full Rule")
 
@@ -161,18 +165,18 @@ match_rule = Rule(Either("!", "&"), real_rule, Optional(repetition),
         Action(lambda sym, rule, rep: rule.set_repetition(rep).set_matching(sym)),
     name="Matching Rule")
 
-either_rule = Rule(
-    LBRACKET, OneOrMoreSeparated(R("rules"), PIPE), RBRACKET,
+either_rule.set_rule(Rule(
+    LBRACKET, OneOrMoreSeparated(rules, PIPE), RBRACKET,
         Action(lambda _1, rules, _2: AstRuleEither(rules))
-)
+))
 
 rule_repeat = Rule(OneOrMore(Either(match_rule, full_rule, predicate)), Optional(action),
     Action(lambda x, a: AstRuleGroup(x, a)))
 
-rules = Rule(
+rules.set_rule(Rule(
     OneOrMoreSeparated(rule_repeat, PIPE), Action(lambda x: AstRuleEither(x)),
     name="Rules+"
-)
+))
 
 ####################### Rule declaration ###########################
 
@@ -180,10 +184,10 @@ ruleskip = Rule("skip", real_rule,
         Action(lambda id, rule: (id, rule)),
     name="Rule Argument")
 
-ruledecl = Rule(
+ruledecl.set_rule(Rule(
     rulename, Optional("skip", real_rule, Action(lambda _, rule: rule)), EQUAL,
     name="Rule Declaration"
-)
+))
 
 grammarrule = Rule(
     ruledecl, rules, Action(lambda decl, rules: AstRuleDecl(decl[0], rules, skip=decl[1])),

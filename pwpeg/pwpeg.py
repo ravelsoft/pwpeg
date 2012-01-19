@@ -426,43 +426,21 @@ class Either(Rule):
         raise SyntaxError("None of the provided choices matched")
 
 
-
-class R(Rule):
-    """ A proxy Rule to call rules not yet defined in the scope.
-
-        What it does is by using the `inspect` module, it stores a reference
-        to the module where it is instanciated as well as the name of the rule
-        in said module.
-
-        When the rule is to be used for parsing, it fetches it from the module
-        and executes it.
-
-        This means that this Rule can be used to refer to rules that will be
-        defined later in the code, or even the current rule if we need
-        recursion.
+class ForwardRule(Rule):
+    """ The forward declaration of a rule.
     """
 
-    def __init__(self, rulename, *args, **kwargs):
-
-        c = inspect.currentframe()
-        self.gl = c.f_back.f_globals
-        self.name = rulename
-        self.args = args
-        self.kwargs = kwargs
-
+    def __init__(self, name = ""):
+        self.rule = None
+        self.name = name or "ForwardRule"
 
     def parse(self, *args, **kwargs):
-        raise Exception("This method should never be called directly.")
+        return self.rule.parse(*args, **kwargs)
 
-
-    def __call__(self):
-        """ Return the result of calling the real rule after fetching
-            it from its global object.
-        """
-
-        if not self.name in self.gl:
-            raise Exception("The rule {0} is not defined in this scope.".format(self.name))
-        return self.gl[self.name](*self.args, **self.kwargs)
+    def set_rule(self, rule):
+        self.rule = rule
+        self.rulefn = rule.rulefn
+        return self
 
 def analyse_frames(f, i=[0]):
     if f.f_back:

@@ -88,10 +88,11 @@ class AstRuleCall(AstRuleSingle):
             rulename = self.rule[:paren_start]
 
         if not rulename in ctx["seen_rules"]:
-            if paren_start != -1:
-                self.rule = "R(\'{0}\', {1}".format(rulename, self.rule[paren_start + 1:])
-            else:
-                self.rule = "R(\'{0}\')".format(rulename)
+            ctx["asked_rules"].add(rulename)
+            #if paren_start != -1:
+            #    self.rule = "R(\'{0}\', {1}".format(rulename, self.rule[paren_start + 1:])
+            #else:
+            #    self.rule = "R(\'{0}\')".format(rulename)
 
         return super(AstRuleCall, self).to_python(ctx, indent)
 
@@ -207,12 +208,23 @@ class AstRuleDecl(AstNode):
 
         skip = ("skip=" + self.skip.to_python(ctx, indent) if self.skip else "")
 
-        # The rule has some parameters.
-        if self.name.endswith(")"):
-            res.append("@rule({0})".format(skip))
-            res.append("def {0}:".format(self.name))
+        name = self.name
+        add_set_rule = ""
 
-            result = "    return {1}".format(self.name, self.rules.to_python(ctx, indent + 4))
+        # The rule has some parameters.
+        if name.endswith(")"):
+            
+            result = "    return {0}".format(self.rules.to_python(ctx, indent + 4))
+            
+            idx = name.find("(")
+            if idx == -1: raise Exception("Incorrect rule name: ends by ) but doesn't have (")
+
+            if name[:idx] in ctx["asked_rules"]:
+                add_set_rule = name[:idx]
+                name = "__" + name
+
+            res.append("@rule({0})".format(skip))
+            res.append("def {0}:".format(name))
 
             if actions:
                 actions = ["\n".join(["    " + l for l in a.split('\n')]) for a in actions]
@@ -220,13 +232,20 @@ class AstRuleDecl(AstNode):
 
             res.append(result)
         else:
+            if name in ctx["asked_rules"]:
+                add_set_rule = name
+                name = "__" + name
+
             if skip: skip = ", {0}".format(skip)
-            res.append("{0} = Rule({1}, name='{0}'{2})".format(self.name, self.rules.to_python(ctx, indent), skip))
+            res.append("{0} = Rule({1}, name='{3}'{2})".format(name, self.rules.to_python(ctx, indent), skip, self.name))
 
             if actions:
                 res.insert(0, "\n\n".join(actions))
 
-        ctx["seen_rules"].append(self.name)
+        if add_set_rule:
+            res.append("{0}.set_rule(__{0})".format(add_set_rule))
+
+        ctx["seen_rules"].add(self.name)
         return "\n".join(res)
 
 
@@ -242,13 +261,20 @@ class AstFile(AstNode):
 
     def to_python(self, ctx=dict(), indent=0):
         ctx["last_action"] = [0]
-        ctx["seen_rules"] = [n for n in helpers.__dict__.keys()] + \
-            [n for n in pwpeg.__dict__.keys()] + ["None"]
+        ctx["seen_rules"] = set([n for n in helpers.__dict__.keys()] + \
+            [n for n in pwpeg.__dict__.keys()] + ["None"])
+        ctx["asked_rules"] = set()
+
+        rules = [r.to_python(ctx, indent) for r in self.rules]
+        asked = [ "{0} = ForwardRule()".format(name) for name in ctx["asked_rules"] ]
+        if asked:
+            asked.append("")
 
         return "\n".join(["import re\n",
             "from pwpeg import *",
             "from pwpeg.helpers import *",
             "\n" + self.code,
-            "\n\n".join([r.to_python(ctx, indent) for r in self.rules])
+            "\n\n".join(asked),
+            "\n\n".join(rules)
         ])
 
