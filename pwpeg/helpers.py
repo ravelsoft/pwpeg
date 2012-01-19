@@ -140,13 +140,9 @@ empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 def IndentedBlock(grammar_rule, start=None):
     """
     """
-    start = start or MemoRule(re.compile("[ \t]*"))
+    if not start: start = MemoRule(re.compile("[ \t]*"))
 
-    @rule
-    def indented_line():
-        return start, grammar_rule, Optional(empty_lines)
-
-    return OneOrMore(indented_line)
+    return OneOrMore(empty_lines, start, grammar_rule, Optional(empty_lines), Action(lambda e, s, g, e2: (s, g, e2) ))
 
 #@rule(skip=None)
 #def IndentedBlock(grammar_rule, indentation=1):

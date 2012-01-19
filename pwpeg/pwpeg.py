@@ -493,7 +493,7 @@ class Parser(object):
         #    return
 
         if result[0] != len(text):
-            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: {0}".format(text[result[0]:]))
+            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'".format(text[result[0]:]))
 
         # Everything went fine, sending the results.
         return result[1]
