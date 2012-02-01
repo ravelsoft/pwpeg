@@ -199,6 +199,14 @@ class AstRuleDecl(AstNode):
             args = ", ".join([o[0] for o in self.args])
             args = "({0})".format(args)
         return "<{0}{1}> {2}".format(self.name, args, self.rules)
+    
+    def set_name(self, name):
+        self.name = name
+        return self
+
+    def set_skip(self, skip):
+        self.skip = skip
+        return self
 
     def to_python(self, ctx=dict(), indent=0):
         res = []

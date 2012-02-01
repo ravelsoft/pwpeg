@@ -8,13 +8,13 @@ import sys
 
 if sys.version_info >= (3, 0):
     # Python 3 removed entirely the unicode type, so to have
-    # the text isinstance() still work, we just remap it to str (which
+    # the input isinstance() still work, we just remap it to str (which
     # is unicode anyways)
     unicode = str
 
 
 class SyntaxError(Exception):
-    """ The way the text is parsed is by trial and error.
+    """ The way the input is parsed is by trial and error.
 
         When SyntaxError is caught by the parser, it goes up the caller
         chain to get to the first Choice() it finds to keep looking
@@ -52,6 +52,60 @@ class Results(list):
         return "{0}:{1}".format(self.name, super(Results, self).__repr__())
 
 
+class FoundToken(object):
+    def __init__(self, tokencls, match, lineno, start, column):
+        self.token = tokencls
+        self.match = match
+        self.value = match.group()
+        self.lineno = lineno
+        self.start = start
+        self.column = column
+
+
+class Token(object):
+    """
+    """
+
+    def __init__(self, exp, flags=0, tokenelt=FoundToken):
+        self.regexp = re.compile("^" + exp, flags)
+        self.tokenelt = tokenelt
+
+    def match(self, text, lineno, start, column):
+        m = self.regexp.match(text)
+        if m:
+            return self.tokenelt(self, m, lineno, start, column)
+        return None
+
+
+class TokenStream(list):
+    """
+    """
+
+    def __init__(self, tokens, text):
+        self.tokens = tokens
+        lineno = 0
+        column = 0
+        start = 0
+
+        while text != "":
+            m = None
+
+            for t in tokens:
+                m = t.match(text, lineno, start, column)
+                if m: break
+
+            if not m and text != "":
+                raise Exception("Could not parse the whole input")
+
+            advance = m.value
+
+            lineno += advance.count("\n")
+            column = len(advance.split("\n")[-1]) + 1
+            start += len(advance)
+            text = [len(advance):]
+
+            self.append(m)
+
 
 class Rule(object):
     """ A Grammar rule.
@@ -71,8 +125,8 @@ class Rule(object):
             self.kwargs = kwargs
             self.rule = rule
 
-        def __call__(self, text, skip=None):
-            return self.rule.parse(text, rules=self.rule.rulefn(*self.args, **self.kwargs), skip=skip)
+        def __call__(self, input, skip=None):
+            return self.rule.parse(input, rules=self.rule.rulefn(*self.args, **self.kwargs), skip=skip)
 
         def __repr__(self):
             return self.rule.__repr__(repr(self.args))
@@ -120,28 +174,42 @@ class Rule(object):
                 skip = skip()
 
         self.skip = skip
+        return self
+
+    def set_name(self, name):
+        self.name = name
+        return self
 
 
-    def _parse_terminal(self, text, terminal):
+    def _parse_terminal(self, input, terminal):
         """ Try to match a string in the input.
         """
 
-        if text.startswith(terminal):
+        if input.startswith(terminal):
             return len(terminal), terminal
         return False
 
 
-    def _parse_regexp(self, text, reg):
+    def _parse_regexp(self, input, reg):
         """ Try to match a regexp and returns its entire match.
         """
 
-        m = reg.match(text)
+        m = reg.match(input)
         if m:
             return len(m.group(0)), m.group(0)
         return False
 
 
-    def parse(self, text, rules=None, skip=None):
+    def _parse_token(self, input, tok):
+        """ Parse a token from the stream.
+        """
+
+        if input[0].token == tok:
+            return 1, input[0]
+        return False
+
+
+    def parse(self, input, rules=None, skip=None):
         """ Execute the rules
         """
 
@@ -163,7 +231,7 @@ class Rule(object):
 
             if skip:
                 try:
-                    adv, res = skip(text[advanced:])
+                    adv, res = skip(input[advanced:])
                     adv_before = advanced
                     advanced += adv
                     adv_after = advanced
@@ -171,24 +239,24 @@ class Rule(object):
                     # Nothing to skip.
                     pass
 
-            # We are checking a simple text terminal
+            # We are checking a simple input terminal
             if isinstance(r, unicode) or isinstance(r, str):
-                subrule_result = self._parse_terminal(text[advanced:], r)
+                subrule_result = self._parse_terminal(input[advanced:], r)
 
             # We have to handle a regexp.
             elif isinstance(r, _pattern_type):
-                subrule_result = self._parse_regexp(text[advanced:], r)
+                subrule_result = self._parse_regexp(input[advanced:], r)
 
             # We have an armed rule, which technically means that the rule function of
             # the rule has already been evaluated.
             elif isinstance(r, Rule.ArmedRule):
-                subrule_result = r(text[advanced:], skip=skip)
+                subrule_result = r(input[advanced:], skip=skip)
 
             # We have a rule that hasn't be armed. We assume that it's rule function doesn't
             # take arguments.
             elif isinstance(r, Rule):
                 r2 = r()
-                subrule_result = r2(text[advanced:], skip=skip)
+                subrule_result = r2(input[advanced:], skip=skip)
 
                 # Text was not matched, so just go to the next rule.
                 if subrule_result is None:
@@ -268,7 +336,7 @@ class Repetition(Rule):
         super(Repetition, self).__init__(*args, **kwargs)
 
 
-    def parse(self, text, rules, skip=None):
+    def parse(self, input, rules, skip=None):
         results = []
 
         times = 0
@@ -276,10 +344,10 @@ class Repetition(Rule):
 
         advance = 0
 
-        while advance < len(text) and (_to == -1 or times < _to):
+        while advance < len(input) and (_to == -1 or times < _to):
             try:
                 # Get the resultss.
-                adv, res = super(Repetition, self).parse(text[advance:], rules, skip)
+                adv, res = super(Repetition, self).parse(input[advance:], rules, skip)
             except SyntaxError as e:
                 break
 
@@ -334,8 +402,8 @@ class Optional(Repetition):
         super(Optional, self).__init__(0, 1, *args, **kwargs)
 
 
-    def parse(self, text, rules, skip=None):
-        adv, res = super(Optional, self).parse(text, rules, skip)
+    def parse(self, input, rules, skip=None):
+        adv, res = super(Optional, self).parse(input, rules, skip)
 
         if len(res) == 0:
             return 0, None
@@ -354,9 +422,9 @@ class Not(Rule):
         It does *not* advance the parser position.
     """
 
-    def parse(self, text, rules, skip):
+    def parse(self, input, rules, skip):
         try:
-            adv, res = super(Not, self).parse(text, rules, skip)
+            adv, res = super(Not, self).parse(input, rules, skip)
         except SyntaxError as e:
             # Couldn't match the next rule, which is what we want, so
             # we return a result that won't advance the parser.
@@ -376,9 +444,9 @@ class And(Rule):
     """
 
 
-    def parse(self, text, rules, skip):
+    def parse(self, input, rules, skip):
         # Try to parse our rules
-        super(And, self).parse(text, rules, skip)
+        super(And, self).parse(input, rules, skip)
 
         # If there was no error, we don't advance, which is what we want.
         # A syntax error is raised otherwise in our super() parse.
@@ -408,14 +476,14 @@ class Either(Rule):
         self._process_kwargs(kwargs)
 
 
-    def parse(self, text, rules, skip):
+    def parse(self, input, rules, skip):
         if "skip" in self.__dict__:
             skip = self.skip
 
         for rule in self.rules:
             try:
                 r = rule()
-                return r(text, skip)
+                return r(input, skip)
             except SyntaxError as e:
                 # FIXME should store the error
 
@@ -452,7 +520,7 @@ def analyse_frames(f, i=[0]):
         i[0] += 1
 
 class Parser(object):
-    """ A parser that parses a text input.
+    """ A parser that parses a input input.
 
         It is given a top-level rule with which it will start the parsing,
         as well as a skip rule which will be checked agains before executing
@@ -467,16 +535,16 @@ class Parser(object):
         self.toprule = toprule
 
 
-    def parse(self, text, *args, **kwargs):
+    def parse(self, input, *args, **kwargs):
         """ Parse the given input and return the result of the parsing.
 
             An Exception will be raised if the parsing does not use the
-            integrality of the text.
+            integrality of the input.
         """
 
         #try:
         parse = self.toprule(*args, **kwargs)
-        result = parse(text)
+        result = parse(input)
         #except Exception as e:
         #    etype, eobj, etb = sys.exc_info()
         #    tb = etb
@@ -492,14 +560,14 @@ class Parser(object):
 
         #    return
 
-        if result[0] != len(text):
-            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'".format(text[result[0]:]))
+        if result[0] != len(input):
+            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'".format(input[result[0]:]))
 
         # Everything went fine, sending the results.
         return result[1]
 
 
-    def partial_parse(self, text, *args, **kwargs):
+    def partial_parse(self, input, *args, **kwargs):
         """ Parse the given input and return only the result of the parsing,
             which is a tuple containing the (number of consumed characters, result of parsing).
 
@@ -508,5 +576,5 @@ class Parser(object):
         """
 
         parse = self.toprule(*args, **kwargs)
-        return parse(text)
+        return parse(input)
 
