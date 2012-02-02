@@ -137,7 +137,7 @@ RightAssociative = ParametrizableRule(_RightAssociative)
 #       Regexp Helpers
 
 def delimitedby_regexp(char, escape):
-    return re.compile("{0}({1}{0}|(?!{0}).)*{0}".format(re.escape(char), re.escape(escape)))
+    return re.compile(u("{0}({1}{0}|(?!{0}).)*{0}").format(re.escape(char), re.escape(escape)))
 
 def allbut_regexp(char, escape):
-    return re.compile("({1}{0}|(?!{0}).)*".format(re.escape(char), re.escape(escape)))
+    return re.compile(u("({1}{0}|(?!{0}).)*").format(re.escape(char), re.escape(escape)))

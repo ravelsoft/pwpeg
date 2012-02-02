@@ -11,6 +11,7 @@ if sys.version_info >= (3, 0):
     # the input isinstance() still work, we just remap it to str (which
     # is unicode anyways)
     unicode = str
+u = unicode
 
 
 class SyntaxError(Exception):
@@ -32,7 +33,7 @@ class SyntaxError(Exception):
         column = len(self.advanced.split("\n")[-1])
         nlines = self.advanced.count("\n")
 
-        return "Line {0}, column {1}, {2}\n".format(nlines, column, self.fullmessage())
+        return u("Line {0}, column {1}, {2}\n").format(nlines, column, self.fullmessage())
 
 
 class IgnoreResult(object):
@@ -53,7 +54,7 @@ class Results(list):
         self.dict = {}
 
     def __repr__(self):
-        return "{0}:{1}".format(self.name, super(Results, self).__repr__())
+        return u("{0}:{1}").format(self.name, super(Results, self).__repr__())
 
     def add(self, name, value):
         self.dict[name] = len(self)
@@ -144,7 +145,7 @@ class Rule(object):
             try:
                 subrule_result = r.parse(input[advanced:], results, skip)
             except SyntaxError as e:
-                raise SyntaxError("In {0}:".format(self.name), input[:advanced], [e])
+                raise SyntaxError(u("In {0}:").format(self.name), input[:advanced], [e])
 
             # If everything went according to plan, the subrule_result is a tuple
             # with the number of consumed characters and the result of the processing
@@ -191,13 +192,13 @@ class Rule(object):
 
 class StringRule(Rule):
     def __init__(self, string):
-        self.string = string
+        self.string = unicode(string)
         self.name = "\"" + self.string + "\""
 
     def parse(self, input, currentresults=None, skip=None):
         if input.startswith(self.string):
             return len(self.string), self.string
-        raise SyntaxError("Expected {0}, but found \"{1}\"...".format(self.name, input[:5]))
+        raise SyntaxError(u("Expected {0}, but found \"{1}\"...").format(self.name, input[:5]))
 
 
 class RegexpRule(Rule):
@@ -209,18 +210,18 @@ class RegexpRule(Rule):
         m = self.regexp.match(input)
         if m:
             return len(m.group()), m.group()
-        raise SyntaxError("Expected {0}, but found \"{1}\"...".format(self.name, input[:5]))
+        raise SyntaxError(u("Expected {0}, but found \"{1}\"...").format(self.name, input[:5]))
 
 
 class Predicate(Rule):
     def __init__(self, fn):
         self.fn = fn
-        self.name = "Predicate {0}".format(fn.__name__)
+        self.name = u("Predicate {0}").format(fn.__name__)
 
     def parse(self, input, currentresults=[], skip=None):
         if self.fn(*currentresults) is False:
             # None actually is a valid result.
-            raise SyntaxError("{0} was not satisfied".format(self.name))
+            raise SyntaxError(u("{0} was not satisfied").format(self.name))
         return 0, IgnoreResult
 
 
@@ -247,7 +248,7 @@ class ParametrizableRule(Rule):
         return self
 
     def instanciate(self, *args):
-        arg_names = "({0})".format(", ".join([repr(a) for a in args]))
+        arg_names = u("({0})").format(", ".join([repr(a) for a in args]))
         r = self.fn(*args).set_name(self.name + arg_names)
 
         if self.action:
@@ -308,12 +309,12 @@ class Repetition(Rule):
             times += 1
 
         if _from != -1 and times < _from:
-            raise SyntaxError("{1} needs to be repeated at least {0} times".format(_from, self.name), input[:advance], last_error)
+            raise SyntaxError(u("{1} needs to be repeated at least {0} times").format(_from, self.name), input[:advance], last_error)
 
         return advance, results
 
     def post_subrule_name(self, sn):
-        self.name = sn + "<{0}, {1}>".format(self._from, self._to)
+        self.name = sn + u("<{0}, {1}>").format(self._from, self._to)
 
 
 
@@ -325,7 +326,7 @@ class OneOrMore(Repetition):
         super(OneOrMore, self).__init__(1, -1, *args, **kwargs)
 
     def post_subrule_name(self, subn):
-        self.name = "[{0}]+".format(subn)
+        self.name = u("[{0}]+").format(subn)
 
 
 class ZeroOrMore(Repetition):
@@ -336,7 +337,7 @@ class ZeroOrMore(Repetition):
         super(ZeroOrMore, self).__init__(0, -1, *args, **kwargs)
 
     def post_subrule_name(self, subn):
-        self.name = "[{0}]*".format(subn)
+        self.name = u("[{0}]*").format(subn)
 
 
 class Exactly(Repetition):
@@ -347,7 +348,7 @@ class Exactly(Repetition):
         super(Exactly, self).__imit__(times, times, *args, **kwargs)
 
     def post_subrule_name(self, subn):
-        self.name = "[{0}]<{1}>".format(subn, self._from)
+        self.name = u("[{0}]<{1}>").format(subn, self._from)
 
 
 class Optional(Repetition):
@@ -387,7 +388,7 @@ class Not(Rule):
             # Couldn't match the next rule, which is what we want, so
             # we return a result that won't advance the parser.
             return 0, IgnoreResult
-        raise SyntaxError("In <{0}> Matched \"{0}\"".format(self.name, input[adv]))
+        raise SyntaxError(u("In <{0}> Matched \"{0}\"").format(self.name, input[adv]))
 
     def post_subrule_name(self, subrules):
         self.name = "Not " + subrules
@@ -414,7 +415,7 @@ class And(Rule):
         return 0, IgnoreResult
 
     def post_subrule_name(self, sn):
-        self.name = "Look-Ahead {0}".format(sn)
+        self.name = u("Look-Ahead {0}").format(sn)
 
 
 
@@ -442,10 +443,10 @@ class Either(Rule):
                 # must try the next choice.
                 continue
 
-        raise SyntaxError("In [{0}], none of the provided choices matched".format(self.name), "", all_errors)
+        raise SyntaxError(u("In [{0}], none of the provided choices matched").format(self.name), "", all_errors)
 
     def post_subrule_name(self, subn):
-        self.name = "either {0}".format(subn)
+        self.name = u("either {0}").format(subn)
 
 class Any(Rule):
     def __init__(self):
@@ -522,7 +523,7 @@ class Parser(object):
         result = self.toprule.parse(input)
 
         if result[0] != len(input):
-            raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'".format(input[result[0]:]))
+            raise Exception(u("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'").format(input[result[0]:]))
 
         # Everything went fine, sending the results.
         return result[1]

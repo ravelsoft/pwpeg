@@ -5,6 +5,7 @@
 
 from pwpeg.pwpeglang import toplevel
 from pwpeg import Parser, SyntaxError
+from pwpeg.visitor_python import PythonVisitor
 
 #####################################################
 
@@ -25,7 +26,9 @@ if __name__ == "__main__":
 
         try:
             adv, res = parser.partial_parse(s)
-            print(res.to_python())
+            pv = PythonVisitor()
+            print(pv.visit(res))
+            #print(res.to_python())
         except SyntaxError as e:
             import sys
             sys.stderr.write(e.complete())

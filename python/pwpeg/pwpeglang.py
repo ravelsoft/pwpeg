@@ -265,11 +265,10 @@ grammarrule.set_name("Grammar Rule")
 
 toplevel = Rule(
     Optional(starting_code),
-    OneOrMore(grammarrule),
-    Optional(re.compile("( |\t|\n)+", re.M)) # End spaces
+    OneOrMore(grammarrule)
 )
 
-toplevel.set_action(lambda code, rules, _optspace: AstFile(code, rules))
+toplevel.set_action(lambda code, rules: AstFile(code, rules))
 toplevel.set_skip(space_and_comments)
 toplevel.set_name("Top Level")
 
