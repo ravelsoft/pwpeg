@@ -1,17 +1,19 @@
 import re
 from .pwpeg import *
 
+from functools import wraps
+
 
 def _AllBut(but, escape):
     """
     """
 
-    return [ZeroOrMore(
+    return OneOrMore(
         Either(
             Rule(escape, but).set_action(lambda escape, but: but),
             Rule(Not(but), Any())
         )
-    )]
+    )
 
 AllBut = ParametrizableRule(_AllBut).set_skip(None)
 AllBut.set_name("All But")
@@ -26,7 +28,7 @@ def _Balanced(start, end, escape):
     def __balanced_inside():
         return Either(
             # Recurse on a balanced expression
-            Rule(start, Optional(balanced_inside), end).set_action(lambda s, m, e: s + (m or "") + e),
+            Rule(start, Optional(balanced_inside), end).set_action(lambda s, m, e: [s] + (m or []) + [e]),
 
             # Or simply gobble up characters that neither start nor end or their
             # backslashed version.
@@ -35,10 +37,9 @@ def _Balanced(start, end, escape):
 
     balanced_inside.set_fn(__balanced_inside)
 
-    return start, ZeroOrMore(balanced_inside), end
+    return Rule(start, ZeroOrMore(balanced_inside), end).set_action(lambda s, l, e: [s] + l + [e])
 
 Balanced = ParametrizableRule(_Balanced).set_skip(None)
-Balanced.set_action(lambda s, l, e: (s, "".join(l), e))
 Balanced.set_name("Balanced")
 
 
@@ -48,7 +49,6 @@ def _DelimitedBy(char, escape):
 
     return char, AllBut.instanciate(char, escape), char
 DelimitedBy = ParametrizableRule(_DelimitedBy).set_skip(None)
-
 
 def _RepeatingSeparated(rule, separator, at_least, at_most):
     """
@@ -60,7 +60,7 @@ def _RepeatingSeparated(rule, separator, at_least, at_most):
     if at_least == 0:
         return Optional(rule, Repetition(0, at_most - 1, separator, rule)).set_action(lambda _1, r: r)
 
-    return rule, Repetition(at_least - 1, at_most - 1, separator, rule).set_action(lambda _1, _2: _2)
+    return Rule(rule, Repetition(at_least - 1, at_most - 1, separator, rule).set_action(lambda _1, _2: _2))
 
 RepeatingSeparated = ParametrizableRule(_RepeatingSeparated)
 
@@ -69,19 +69,18 @@ def _repeat_action(rule, separator, at_lesat, at_most, first, rest):
     return rest
 RepeatingSeparated.set_action(_repeat_action)
 
-
 def _ZeroOrMoreSeparated(rules, sep):
-    return [RepeatingSeparated.instanciate(rules, sep, 0, -1)]
+    return RepeatingSeparated.instanciate(rules, sep, 0, -1)
 ZeroOrMoreSeparated = ParametrizableRule(_ZeroOrMoreSeparated)
 
 
 def _OneOrMoreSeparated(rules, sep):
-    return [RepeatingSeparated.instanciate(rules, sep, 1, -1)]
+    return RepeatingSeparated.instanciate(rules, sep, 1, -1)
 OneOrMoreSeparated = ParametrizableRule(_OneOrMoreSeparated)
 
 
 def _ExactlySeparated(how_much, rules, sep):
-    return [RepeatingSeparated.instanciate(rules, sep, how_much, how_much)]
+    return RepeatingSeparated.instanciate(rules, sep, how_much, how_much)
 ExactlySeparated = ParametrizableRule(_ExactlySeparated)
 
 
@@ -94,15 +93,6 @@ re_more_indent = re.compile("[ \t]+")
 re_lead = re.compile("^[ \t]+")
 to_eol = Rule(re.compile("[ \t]*"))
 empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
-
-
-def _IndentedBlock(grammar_rule, start):
-    """
-    """
-    if not start: start = MemoRule(re.compile("[ \t]*"))
-
-    return OneOrMore(empty_lines, start, grammar_rule, Optional(empty_lines), Action(lambda e, s, g, e2: (s, g, e2) ))
-IndentedBlock = ParametrizableRule(_IndentedBlock).set_skip(None)
 
 
 def la_tree_from_list_leftmost(leftmost, lst, action, idx=-1):
@@ -142,3 +132,12 @@ def _RightAssociative(op_ParametrizableRule, sub_ParametrizableRule):
 
     return Rule(sub_ParametrizableRule, Optional(op_ParametrizableRule, self_recurse)).set_action(_act)
 RightAssociative = ParametrizableRule(_RightAssociative)
+
+####################################################################
+#       Regexp Helpers
+
+def delimitedby_regexp(char, escape):
+    return re.compile("{0}({1}{0}|(?!{0}).)*{0}".format(re.escape(char), re.escape(escape)))
+
+def allbut_regexp(char, escape):
+    return re.compile("({1}{0}|(?!{0}).)*".format(re.escape(char), re.escape(escape)))

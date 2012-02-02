@@ -24,7 +24,7 @@ if __name__ == "__main__":
         f.close()
 
         try:
-            res = parser.parse(s)
+            adv, res = parser.partial_parse(s)
             print(res.to_python())
         except SyntaxError as e:
             import sys

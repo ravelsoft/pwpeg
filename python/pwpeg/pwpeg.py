@@ -239,7 +239,7 @@ class ParametrizableRule(Rule):
 
     def set_fn(self, fn):
         args, varargs, keywords, defaults = inspect.getargspec(fn)
-        if varargs or keywords or defaults:
+        if keywords or defaults:
             raise Exception("Parametrizable rules functions can only take simple args")
 
         self.fn = fn
@@ -248,8 +248,7 @@ class ParametrizableRule(Rule):
 
     def instanciate(self, *args):
         arg_names = "({0})".format(", ".join([repr(a) for a in args]))
-        subrules = [Rule.getrule(a) for a in self.fn(*args)]
-        r = Rule(*subrules).set_name(self.name + arg_names)
+        r = self.fn(*args).set_name(self.name + arg_names)
 
         if self.action:
             def _act(*a):
@@ -268,7 +267,7 @@ class ParametrizableRule(Rule):
         if "skip" in self.__dict__:
             r.set_skip(self.skip)
 
-        return r.parse(input, currentresults)
+        return r.parse(input, currentresults, skip)
 
 
 class Repetition(Rule):
@@ -449,6 +448,9 @@ class Either(Rule):
         self.name = "either {0}".format(subn)
 
 class Any(Rule):
+    def __init__(self):
+        self.name = "Any"
+
     def parse(self, input, currentresults=None, skip=None):
         if skip is None and "skip" in self.__dict__: skip = self.skip
 
@@ -517,7 +519,7 @@ class Parser(object):
             integrality of the input.
         """
 
-        result = self.toprule.parse(input, None)
+        result = self.toprule.parse(input)
 
         if result[0] != len(input):
             raise Exception("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'".format(input[result[0]:]))
@@ -534,5 +536,5 @@ class Parser(object):
             the totality of the input.
         """
 
-        return self.toprule.parse(input, None)
+        return self.toprule.parse(input)
 

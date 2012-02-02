@@ -191,6 +191,7 @@ class AstRuleDecl(AstNode):
 
     def set_skip(self, skip):
         self.skip = skip
+        return self
 
     def __repr__(self):
         args = ""

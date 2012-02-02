@@ -40,7 +40,7 @@ def concat(arr):
     res = []
     for a in arr:
         if isinstance(a, list):
-            res.append(_concat(a))
+            res.append(concat(a))
         else:
             res.append(a)
 
@@ -89,15 +89,16 @@ balanced_brackets   = Balanced.instanciate("[", "]", "\\")
 
 # Re-concatenate the string.
 string = Either(
-    Rule(DelimitedBy.instanciate('\'', "\\")).set_action(lambda x: "".join(x)),
-    Rule(DelimitedBy.instanciate('"', "\\")).set_action(lambda x: "".join(x)),
+    delimitedby_regexp("'", '\\'),
+    delimitedby_regexp('"', '\\'),
     # Backslash quoted string
     Rule(re.compile("\\\\[^ \t\n\[\]\|\)]+")).set_action(lambda s: "'" + s[1:].replace('\'', '\\\'').replace('\\', '\\\\') + "'")
 ).set_skip(None)
 
 
 regexp = Rule(
-    DelimitedBy.instanciate('/', '\\').set_action(lambda delimiter, escape, result: "".join(result)),
+    #DelimitedBy.instanciate('/', '\\').set_action(lambda delimiter, escape, result: "".join(result)),
+    delimitedby_regexp('/', '\\'),
     Optional(re.compile('[idsmlux]+'))
 ).set_skip(None).set_action(lambda d, f: _regexp_action(d, f))
 
@@ -123,7 +124,7 @@ blanks = re.compile("[ \t]+")
 #   expr1
 #   return action
 def _action_multi_line():
-    return (
+    return Rule(
         Optional(SPACE),
         ARROW,
         Optional(LINE_SPACE),
@@ -137,9 +138,7 @@ def _action_multi_line():
     )
 
 action_multi_line = ParametrizableRule(_action_multi_line)
-action_multi_line.set_action(
-    lambda sp, arrow, more_space, eol, code: "\n".join([t[1] for t in code])
-)
+action_multi_line.set_action(lambda sp, arrow, more_space, eol, code: "\n".join([t[1] for t in code]))
 action_multi_line.set_skip(None).set_name("Multi Line Action")
 
 ###############################
@@ -180,14 +179,14 @@ predicate = Rule(
 rulename = Rule(
     identifier,
     Optional(balanced_paren)
-).set_action(lambda i, b: AstRuleCall(i + replace_regexps(concat(b)))).set_name("Rule Name")
+).set_action(lambda i, b: i + replace_regexps(concat(b))).set_name("Rule Name")
 
 either_rule = Rule()
 
 real_rule = Either(
     regexp,
     string,
-    rulename,
+    Rule(rulename).set_action(lambda x: AstRuleCall(x)),
     external_rule,
     either_rule
 ).set_action(lambda r: AstRuleSingle(r))
@@ -266,9 +265,11 @@ grammarrule.set_name("Grammar Rule")
 
 toplevel = Rule(
     Optional(starting_code),
-    OneOrMore(grammarrule)
+    OneOrMore(grammarrule),
+    Optional(re.compile("( |\t|\n)+", re.M)) # End spaces
 )
-toplevel.set_action(lambda code, rules: AstFile(code, rules))
+
+toplevel.set_action(lambda code, rules, _optspace: AstFile(code, rules))
 toplevel.set_skip(space_and_comments)
 toplevel.set_name("Top Level")
 
