@@ -89,10 +89,6 @@ class AstRuleCall(AstRuleSingle):
 
         if not rulename in ctx["seen_rules"]:
             ctx["asked_rules"].add(rulename)
-            #if paren_start != -1:
-            #    self.rule = "R(\'{0}\', {1}".format(rulename, self.rule[paren_start + 1:])
-            #else:
-            #    self.rule = "R(\'{0}\')".format(rulename)
 
         return super(AstRuleCall, self).to_python(ctx, indent)
 
@@ -188,9 +184,12 @@ class AstRuleEither(AstRuleGroup):
 
 
 class AstRuleDecl(AstNode):
-    def __init__(self, name, rules, skip=None):
+    def __init__(self, name, rules):
         self.name = name
         self.rules = rules
+        self.skip = None
+
+    def set_skip(self, skip):
         self.skip = skip
 
     def __repr__(self):
@@ -213,9 +212,9 @@ class AstRuleDecl(AstNode):
 
         # The rule has some parameters.
         if name.endswith(")"):
-            
+
             result = "    return {0}".format(self.rules.to_python(ctx, indent + 4))
-            
+
             idx = name.find("(")
             if idx == -1: raise Exception("Incorrect rule name: ends by ) but doesn't have (")
 

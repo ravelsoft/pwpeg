@@ -88,6 +88,7 @@ class Rule(object):
 
 
     def __init__(self, *args):
+        self.action = None
         self.name = ""
 
         if len(args) > 0:
@@ -143,7 +144,7 @@ class Rule(object):
             try:
                 subrule_result = r.parse(input[advanced:], results, skip)
             except SyntaxError as e:
-                raise SyntaxError("In rule <{0}>:".format(self.name), input[:advanced], [e])
+                raise SyntaxError("In {0}:".format(self.name), input[:advanced], [e])
 
             # If everything went according to plan, the subrule_result is a tuple
             # with the number of consumed characters and the result of the processing
@@ -158,7 +159,7 @@ class Rule(object):
         # Restoring advancement before skip if skipping was the last thing we did.
         if advanced == adv_after: advanced = adv_before
 
-        if "action" in self.__dict__ and self.action:
+        if self.action:
             return advanced, self.action(*results)
 
         if len(results) == 1:
@@ -168,6 +169,10 @@ class Rule(object):
             return advanced, results[0]
 
         return advanced, results
+
+
+    def __repr__(self):
+        return self.name
 
 
     def set_action(self, fn):
@@ -226,7 +231,7 @@ class ParametrizableRule(Rule):
     def __init__(self, fn=None):
         if fn:
             self.set_fn(fn)
-            self.name = "Param rule {0}".format(fn.__name__)
+            self.name = fn.__name__
         else:
             self.fn = None
             self.name = "Param rule <no function>"
@@ -238,14 +243,18 @@ class ParametrizableRule(Rule):
             raise Exception("Parametrizable rules functions can only take simple args")
 
         self.fn = fn
+        self.name = fn.__name__
         return self
 
     def instanciate(self, *args):
+        arg_names = "({0})".format(", ".join([repr(a) for a in args]))
         subrules = [Rule.getrule(a) for a in self.fn(*args)]
-        r = Rule(*subrules)
+        r = Rule(*subrules).set_name(self.name + arg_names)
 
         if self.action:
-            r.set_action(lambda *a: self.action( *(args + a) ))
+            def _act(*a):
+                return self.action( *(args + a))
+            r.set_action(_act)
 
         if "skip" in self.__dict__:
             r.set_skip(self.skip)
@@ -254,7 +263,7 @@ class ParametrizableRule(Rule):
 
     def parse(self, input, currentresults=None, skip=None):
         # Works if the rule doesn't need any arguments
-        r = Rule(*self.fn())
+        r = self.instanciate()
 
         if "skip" in self.__dict__:
             r.set_skip(self.skip)
@@ -300,9 +309,12 @@ class Repetition(Rule):
             times += 1
 
         if _from != -1 and times < _from:
-            raise SyntaxError("Rule needs to be repeated at least {0} times ({1})".format(_from, self.name), input[:advance], last_error)
+            raise SyntaxError("{1} needs to be repeated at least {0} times".format(_from, self.name), input[:advance], last_error)
 
         return advance, results
+
+    def post_subrule_name(self, sn):
+        self.name = sn + "<{0}, {1}>".format(self._from, self._to)
 
 
 
@@ -324,6 +336,8 @@ class ZeroOrMore(Repetition):
     def __init__(self, *args, **kwargs):
         super(ZeroOrMore, self).__init__(0, -1, *args, **kwargs)
 
+    def post_subrule_name(self, subn):
+        self.name = "[{0}]*".format(subn)
 
 
 class Exactly(Repetition):
@@ -333,6 +347,8 @@ class Exactly(Repetition):
     def __init__(self, times, *args, **kwargs):
         super(Exactly, self).__imit__(times, times, *args, **kwargs)
 
+    def post_subrule_name(self, subn):
+        self.name = "[{0}]<{1}>".format(subn, self._from)
 
 
 class Optional(Repetition):
@@ -352,7 +368,7 @@ class Optional(Repetition):
         return adv, res[0]
 
     def post_subrule_name(self, sn):
-        self.name = sn + "?"
+        self.name = "[" + sn + "]?"
 
 
 class Not(Rule):
@@ -415,7 +431,10 @@ class Either(Rule):
 
         for rule in self.subrules:
             try:
-                return rule.parse(input, currentresults, skip)
+                adv, res = rule.parse(input, currentresults, skip)
+                if self.action:
+                    return adv, self.action(res)
+                return adv, res
             except SyntaxError as e:
                 all_errors.append(e)
                 # FIXME should store the error
@@ -424,10 +443,55 @@ class Either(Rule):
                 # must try the next choice.
                 continue
 
-        raise SyntaxError("In <{0}> None of the provided choices matched".format(self.name), "", all_errors)
+        raise SyntaxError("In [{0}], none of the provided choices matched".format(self.name), "", all_errors)
 
     def post_subrule_name(self, subn):
-        self.name = "Either - {0}".format(subn)
+        self.name = "either {0}".format(subn)
+
+class Any(Rule):
+    def parse(self, input, currentresults=None, skip=None):
+        if skip is None and "skip" in self.__dict__: skip = self.skip
+
+        advanced = 0
+
+        if skip:
+            try:
+                adv, res = skip.parse(input[advanced:])
+                adv_before = advanced
+                advanced += adv
+                adv_after = advanced
+            except SyntaxError as e:
+                # Nothing to skip.
+                pass
+
+        if not input[advanced:]:
+            raise SyntaxError("Want anything, but no more input", input[:advanced])
+
+        return advanced + 1, input[advanced]
+
+class MemoRule(Rule):
+    """ A rule that memorizes itself for future uses.
+    """
+
+    def __init__(self, *args):
+        self.memorized = None
+        super(MemoRule, self).__init__(*args)
+
+    def parse(self, input, currentresults=None, skip=None):
+        """
+        """
+        if not self.memorized:
+            # act = self.__dict__.get("action", None)
+            # if act: del self.__dict__["action"]
+
+            adv, res = super(MemoRule, self).parse(input, currentresults, skip)
+            self.memorized = res
+
+            # return (adv, act(*res)) if act else (adv, res)
+            return adv, res
+        else:
+            adv, res = super(MemoRule, self).parse(input, currentresults, skip)
+            return adv, res
 
 
 class Parser(object):

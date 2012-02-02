@@ -6,22 +6,15 @@ def _AllBut(but, escape):
     """
     """
 
-    if not isinstance(but, list):
-        but = [but]
+    return [ZeroOrMore(
+        Either(
+            Rule(escape, but).set_action(lambda escape, but: but),
+            Rule(Not(but), Any())
+        )
+    )]
 
-    _not = "|".join([re.escape(b) for b in but])
-
-    if escape:
-        escaped = [escape + re.escape(a) for a in but]
-    else:
-        escaped = []
-
-    escaped.append(".")
-    _valid = "|".join(escaped)
-    regexp = "((?!{_not})({_valid}))+".format(_not=_not, _valid=_valid)
-
-    return re.compile(regexp, re.DOTALL),
 AllBut = ParametrizableRule(_AllBut).set_skip(None)
+AllBut.set_name("All But")
 
 
 def _Balanced(start, end, escape):
@@ -43,8 +36,10 @@ def _Balanced(start, end, escape):
     balanced_inside.set_fn(__balanced_inside)
 
     return start, ZeroOrMore(balanced_inside), end
+
 Balanced = ParametrizableRule(_Balanced).set_skip(None)
 Balanced.set_action(lambda s, l, e: (s, "".join(l), e))
+Balanced.set_name("Balanced")
 
 
 def _DelimitedBy(char, escape):
@@ -55,7 +50,7 @@ def _DelimitedBy(char, escape):
 DelimitedBy = ParametrizableRule(_DelimitedBy).set_skip(None)
 
 
-def _RepeatingSeparated(rules, separator, at_least, at_most):
+def _RepeatingSeparated(rule, separator, at_least, at_most):
     """
     """
     if at_most == -1:
@@ -63,16 +58,15 @@ def _RepeatingSeparated(rules, separator, at_least, at_most):
         at_most = 0
 
     if at_least == 0:
-        return Optional(rules, Repetition(0, at_most - 1, separator, rules)).set_action(lambda _1, r: r)
+        return Optional(rule, Repetition(0, at_most - 1, separator, rule)).set_action(lambda _1, r: r)
 
-    return rules, Repetition(at_least - 1, at_most - 1, separator, rules).set_action(lambda _1, _2: _2)
+    return rule, Repetition(at_least - 1, at_most - 1, separator, rule).set_action(lambda _1, _2: _2)
 
 RepeatingSeparated = ParametrizableRule(_RepeatingSeparated)
 
-def _repeat_action(first, rest):
+def _repeat_action(rule, separator, at_lesat, at_most, first, rest):
     rest.insert(0, first)
     return rest
-
 RepeatingSeparated.set_action(_repeat_action)
 
 
@@ -95,32 +89,6 @@ def _RepetitionSeparated(at_least, at_most, rules, sep):
     return RepeatingSeparated.instanciate(rules, sep, at_least, at_most)
 RepetitionSeparated = ParametrizableRule(_RepetitionSeparated)
 
-class MemoRule(Rule):
-    """ A ParametrizableRule that memorizes itself.
-    """
-
-    def __init__(self, *args, **kwargs):
-        self.memorized = None
-        super(MemoRule, self).__init__(*args, **kwargs)
-
-    def parse(self, text, rules=None, skip=None):
-        """
-        """
-        if not self.memorized:
-            act = self.__dict__.get("action", None)
-            if act: del self.__dict__["action"]
-
-            if len(rules) > 0 and isinstance(rules[-1], Action):
-                act = rules[-1] # "command line" action has priority.
-                rules = rules[:-1]
-
-            adv, res = super(MemoRule, self).parse(text, rules, skip)
-            self.memorized = res
-
-            return (adv, act(*res)) if act else (adv, res)
-        else:
-            adv, res = super(MemoRule, self).parse(text, self.memorized, skip)
-            return adv, res
 
 re_more_indent = re.compile("[ \t]+")
 re_lead = re.compile("^[ \t]+")

@@ -97,15 +97,10 @@ string = Either(
 
 
 regexp = Rule(
-    DelimitedBy.instanciate('/', '\\'),
+    DelimitedBy.instanciate('/', '\\').set_action(lambda delimiter, escape, result: "".join(result)),
     Optional(re.compile('[idsmlux]+'))
-).set_skip(None).set_action(lambda d, f: _regexp_action(d[1], f))
+).set_skip(None).set_action(lambda d, f: _regexp_action(d, f))
 
-
-anything_inline = Rule(
-    re.compile("[^\n]*", re.M)
-)
-anything_inline.set_name("Anything Inline")
 
 
 ###############################
@@ -114,6 +109,14 @@ action_braced = Rule(
     Balanced.instanciate(LBRACE, RBRACE, "\\")
     ).set_action(lambda b: b[1].strip())
 action_braced.set_name("Braced Action")
+
+
+anything_inline = Rule(
+    re.compile("[^\n]*")
+)
+anything_inline.set_name("Anything Inline")
+
+blanks = re.compile("[ \t]+")
 
 ###############################
 # ->
@@ -125,7 +128,12 @@ def _action_multi_line():
         ARROW,
         Optional(LINE_SPACE),
         EOL,
-        IndentedBlock.instanciate(anything_inline)
+        ZeroOrMore(
+            Either(
+                Rule(MemoRule(blanks), anything_inline, EOL),
+                Rule(blanks, EOL),
+            )
+        )
     )
 
 action_multi_line = ParametrizableRule(_action_multi_line)
@@ -172,18 +180,17 @@ predicate = Rule(
 rulename = Rule(
     identifier,
     Optional(balanced_paren)
-).set_action(lambda i, b: i + replace_regexps(concat(b))).set_name("Rule Name")
+).set_action(lambda i, b: AstRuleCall(i + replace_regexps(concat(b)))).set_name("Rule Name")
 
 either_rule = Rule()
 
-real_rule = Rule(Either(
+real_rule = Either(
     regexp,
     string,
-    Rule(rulename).set_action(lambda x: AstRuleCall(x))),
+    rulename,
     external_rule,
     either_rule
 ).set_action(lambda r: AstRuleSingle(r))
-
 real_rule.set_name("Real Rule")
 
 label = Rule(identifier, COLON).set_action(lambda name, _2: name).set_name("Production Label")
@@ -195,6 +202,7 @@ repetition = Either(
     Rule("<", number, ">").set_action(lambda l, n, r: (n, n)),
     Rule("<", Optional(number), ",", Optional(number), ">").set_action(lambda l, fr, c, to, r: (-1 if fr is None else fr, -1 if to is None else to) )
 )
+repetition.set_name("Repetition Modifier")
 
 ruledecl = Rule().set_name("Rule Declaration")
 rules = Rule().set_name("Rules Repetition")
@@ -224,8 +232,9 @@ either_rule.set_subrules(
     OneOrMoreSeparated.instanciate(rules, PIPE),
     RBRACKET
 ).set_action(lambda _1, rules, _2: AstRuleEither(rules))
+either_rule.set_name("Rule Choices")
 
-rule_repeat = Rule(
+production_rule = Rule(
     OneOrMore(Either(
         match_rule,
         full_rule,
@@ -233,10 +242,12 @@ rule_repeat = Rule(
     )),
     Optional(action)
 ).set_action(lambda x, a: AstRuleGroup(x, a))
+production_rule.set_name("Production Rule")
 
 rules.set_subrules(
-    OneOrMoreSeparated.instanciate(rule_repeat, PIPE)
+    OneOrMoreSeparated.instanciate(production_rule, PIPE)
 ).set_action(lambda x: AstRuleEither(x))
+rules.set_name("Production Rules")
 
 
 ####################### Rule declaration ###########################
