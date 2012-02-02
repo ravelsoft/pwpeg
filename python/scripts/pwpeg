@@ -4,7 +4,7 @@
 """
 
 from pwpeg.pwpeglang import toplevel
-from pwpeg import Parser
+from pwpeg import Parser, SyntaxError
 
 #####################################################
 
@@ -23,6 +23,10 @@ if __name__ == "__main__":
         s = f.read()
         f.close()
 
-        res = parser.parse(s)
-        print(res.to_python())
+        try:
+            res = parser.parse(s)
+            print(res.to_python())
+        except SyntaxError as e:
+            import sys
+            sys.stderr.write(e.complete())
 
