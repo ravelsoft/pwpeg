@@ -1,29 +1,19 @@
 from . import helpers, pwpeg
 
+
 class AstNode(object):
     def __repr__(self):
-        return "<{0}>".format(self.__class__.__name__)
+        return "{0}".format(self.__class__.__name__)
 
-    def to_python(self, ctx=dict(), indent=0):
-        return "-"
-
-
-class AstPredicate(AstNode):
-    def __init__(self, code):
-        self.code = code
+    def accept(self, visitor, *args, **kwargs):
+        methodname = "visit_" + self.__class__.__name__
+        return getattr(visitor, methodname)(self, *args, **kwargs)
 
 
-    def __repr__(self):
-        return "{{{0}}}".format(self.code)
-
-    def to_python(self, ctx=dict(), indent=0):
-        return "lambda {0}: {1}".format(", ".join(ctx["args"]), self.code)
-
-
-class AstRuleSingle(AstNode):
-    def __init__(self, rule, repetition=None):
+class AstProduction(AstNode):
+    def __init__(self, code=None, repetition=None):
         self.label = None
-        self.rule = rule
+        self.code = code
         self.repetition = None
         self.matching = None
 
@@ -44,73 +34,37 @@ class AstRuleSingle(AstNode):
         repetition = self.repetition or ""
         if self.label:
             label = self.label + ":"
-        return "{0}{1}{2}".format(label, self.rule, repetition)
-
-    def to_python(self, ctx=dict(), indent=0):
-        # FIXME the repetitions !
-        res = None
-
-        if isinstance(self.rule, AstNode):
-            res = self.rule.to_python(ctx, indent)
-        else:
-            res = self.rule
-
-        rep = self.repetition
-        if rep:
-            if rep[0] == rep[1]:
-                res = "Exactly({0}, {1})".format(rep[0], res)
-            elif rep[0] == 0 and rep[1] == 1:
-                res = "Optional({0})".format(res)
-            elif (rep[0] == 0 or rep[0] == -1) and rep[1] == -1:
-                res = "ZeroOrMore({0})".format(res)
-            elif rep[0] == 1 and rep[1] == -1:
-                res = "OneOrMore({0})".format(res)
-            else:
-                res = "Repetition({0}, {1}, {2})".format(rep[0], rep[1], res)
-
-        if self.matching == "!":
-            res = "Not({0})".format(res)
-        elif self.matching == "&":
-            res = "And({0})".format(res)
-        else:
-            res = res
-
-        return res
+        return "{0}{1}{2}".format(label, self.code, repetition)
 
 
-class AstRuleCall(AstRuleSingle):
-    def to_python(self, ctx, indent):
-        rulename = self.rule
-
-        paren_start = self.rule.find("(")
-
-        if paren_start != -1:
-            rulename = self.rule[:paren_start]
-
-        if not rulename in ctx["seen_rules"]:
-            ctx["asked_rules"].add(rulename)
-
-        return super(AstRuleCall, self).to_python(ctx, indent)
+class AstRuleCall(AstProduction):
+    def __init__(self, decl=None, repetition=None):
+        self.decl = decl
+        self.repetition = None
 
 
-class AstCode(AstNode):
+class AstLookAhead(AstProduction):
+    def __init__(self, production, symbol):
+        super(AstLookAhead, self).__init__()
+        self.production = production
+        self.symbol = symbol
+
+
+class AstPredicate(AstProduction):
     def __init__(self, code):
+        super(AstPredicate, self).__init__()
         self.code = code
 
-    def __repr__(self, ctx=dict(), indent=0):
-        code = ""
-        if self.code:
-            code = self.code[:10]
-            if len(self.code) > 10:
-                code += "..."
-        return code
+    def __repr__(self):
+        return "{{{0}}}".format(self.code)
 
 
 
-class AstRuleGroup(AstNode):
-    def __init__(self, rules, action=None):
+class AstProductionGroup(AstProduction):
+    def __init__(self, rules):
+        super(AstProductionGroup, self).__init__()
         self.rules = rules
-        self.action = action
+        self.action = None
 
     def set_action(self, action):
         self.action = action
@@ -126,64 +80,12 @@ class AstRuleGroup(AstNode):
 
         return "{0}{1}".format(rules, action)
 
-    def to_python(self, ctx=dict(), indent=0):
-        ctx = dict(**ctx)
-        ctx["args"] = []
 
-        res = []
-
-        i = 0
-        for r in self.rules:
-
-            if not getattr(r, "matching", None) and not isinstance(r, AstPredicate):
-                ctx["args"].append(getattr(r, "label", None) or "_{0}".format(i))
-                i += 1
-
-            res.append(r.to_python(ctx, indent))
-
-        if self.action:
-            if self.action.find('\n') is -1 and self.action.find('return') is -1:
-                res.append("Action(lambda {0}:{1})".format(", ".join(ctx["args"]), self.action))
-            else:
-                action_name = "action_{0}".format(ctx["last_action"][0])
-                res.append("Action({0})".format(action_name))
-                ctx["last_action"][0] += 1
-
-                action_body = []
-
-                action_body.append("def {0}({1}):".format(action_name, ", ".join(ctx["args"])))
-                for l in self.action.split("\n"):
-                    action_body.append("    " + l)
-                action_body.append("")
-
-                ctx["actions"].append("\n".join(action_body))
-
-        if len(res) > 1:
-            return "(" + ", ".join(res) + ")"
-        return res[0]
+class AstProductionChoices(AstProductionGroup):
+    pass
 
 
-
-class AstRuleEither(AstRuleGroup):
-    def __repr__(self):
-        rep = " | ".join([repr(r) for r in self.rules])
-        if len(self.rules) > 1:
-            return "[" + rep + "]"
-        return rep
-
-    def to_python(self, ctx=dict(), indent=0):
-        if len(self.rules) == 1:
-            return self.rules[0].to_python(ctx, indent)
-
-        normal_ind = " " * indent
-        ind = " " * (indent + 4)
-
-        return "Either(\n{0}{1}\n{2})".format(ind,
-            ",\n{0}".format(ind).join([r.to_python(ctx, indent + 4) for r in self.rules]),
-            normal_ind)
-
-
-class AstRuleDecl(AstNode):
+class AstRuleDeclaration(AstNode):
     def __init__(self, name):
         self.name = name
         self.args = None
@@ -203,15 +105,28 @@ class AstRuleDecl(AstNode):
         return self
 
     def __repr__(self):
-        return "<{0}{1}>".format(self.name, self.args)
+        return "{0}{1}".format(self.name, self.args)
+
+
+class AstCode(AstNode):
+    def __init__(self, code):
+        self.code = code
+
+    def __repr__(self, ctx=dict(), indent=0):
+        code = ""
+        if self.code:
+            code = self.code[:10]
+            if len(self.code) > 10:
+                code += "..."
+        return code
 
 
 class AstFile(AstNode):
 
-    def __init__(self, code, rules, endcode):
-        self.code = code or ""
+    def __init__(self, code_start, rules, code_end):
+        self.code_start = code_start or ""
         self.rules = rules
-        self.endcode = endcode or ""
+        self.code_end = code_end or ""
 
     def __repr__(self):
-        return "{0}{1}{2}".format(self.code, self.rules, self.endcode)
+        return "{0}{1}{2}".format(self.code_start, self.rules, self.code_end)

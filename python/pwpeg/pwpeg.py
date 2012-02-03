@@ -101,7 +101,11 @@ class Rule(object):
         if len(args) == 0:
             raise Exception("Can not have empty rules")
 
-        self.productions = [Rule.getrule(r) for r in args]
+        if len(args) > 1 or not isinstance(args[0], Rule):
+            self.productions = [Rule.getrule(r) for r in args]
+        else:
+            self.productions = args
+
         self.name = self.__class__.__name__
         self.post_subrule_name(", ".join([s.name for s in self.productions]))
         return self

@@ -26,12 +26,7 @@ def _regexp_action(contents, flags):
     return "re.compile({0})".format(", ".join(args))
 
 def replace_regexps(t):
-    # print t
-    res = re_regexp.sub(lambda m: _regexp_action(m.group(0)[1:-1], m.group(2)), t)
-    #import sys
-    #sys.exit()
-    # print res
-    return res
+    return re_regexp.sub(lambda m: _regexp_action(m.group(0)[1:-1], m.group(2)), t)
 
 def concat(arr):
     if arr is None or len(arr) == 0:
@@ -100,7 +95,7 @@ regexp = Rule(
     #DelimitedBy.instanciate('/', '\\').set_action(lambda delimiter, escape, result: "".join(result)),
     delimitedby_regexp('/', '\\'),
     Optional(re.compile('[idsmlux]+'))
-).set_skip(None).set_action(lambda d, f: _regexp_action(d, f))
+).set_skip(None).set_action(lambda d, f: _regexp_action(d[1:-1], f))
 
 
 
@@ -181,7 +176,7 @@ predicate = Rule(
 rule_identifier = Rule(
     identifier,
     Optional(balanced_paren)
-).set_action(lambda i, b: AstRuleDecl(i).set_args(replace_regexps(concat(b)))).set_name("Rule Identifier")
+).set_action(lambda i, b: AstRuleDeclaration(i).set_args(replace_regexps(concat(b)))).set_name("Rule Identifier")
 
 
 ###############################
@@ -201,30 +196,31 @@ repetition.set_name("Repetition Modifier")
 
 rule_declaration = Rule().set_name("Rule Declaration")
 production_group = Rule().set_name("Production Group")
-production_alternative = Rule().set_name("Production Alternatives")
 
 ###############################
 # [ rule1 | rule2 ]
-production_alternative.set_productions(
-    LBRACKET,
+production_group_choices = Rule(
     OneOrMoreSeparated.instanciate(production_group, PIPE),
-    RBRACKET
-).set_action(lambda _1, rules, _2: AstRuleEither(rules))
-production_alternative.set_name("Rule Choices")
+).set_action(lambda productions: AstProductionChoices(productions))
+production_group_choices.set_name("Production Group Choices")
 
 
 production = Rule(
     Optional(label),
     # The following is to prevent the parser from eating up a rule name
     # that serves in a subsequent rule declaration.
+    # ie:  myrule* myrule2+     next_rule = ...
+    # we prevent eating that:   ^^^^^^^^^
     Not(rule_declaration),
     Either(
-        regexp,
-        string,
+        Either(
+            regexp,
+            string,
+            external_rule
+        ).set_action(lambda r: AstProduction(r)),
         Rule(rule_identifier).set_action(lambda d: AstRuleCall(d)),
-        external_rule,
-        production_alternative
-    ).set_action(lambda r: AstRuleSingle(r)),
+        Rule(LBRACKET, production_group_choices, RBRACKET).set_action(lambda _1, alts, _2: alts)
+    ),
     Optional(repetition)
 )
 production.set_action(lambda label, rule, rep: rule.set_label(label).set_repetition(rep))
@@ -239,7 +235,7 @@ look_ahead = Rule(
     production,
     Optional(repetition)
 )
-look_ahead.set_action(lambda symbol, prod, rep: prod.set_repetition(rep).set_matching(symbol))
+look_ahead.set_action(lambda symbol, prod, rep: AstLookAhead(prod.set_repetition(rep), symbol))
 look_ahead.set_name("Look Ahead")
 
 
@@ -252,14 +248,8 @@ production_group.set_productions(
         predicate
     )),
     Optional(action)
-).set_action(lambda x, a: AstRuleGroup(x, a))
+).set_action(lambda rules, a: AstProductionGroup(rules).set_action(a))
 production_group.set_name("Production Group")
-
-
-production_groups = Rule(
-    OneOrMoreSeparated.instanciate(production_group, PIPE)
-).set_action(lambda x: AstRuleEither(x))
-production_groups.set_name("Production Rules")
 
 
 ####################### Rule declaration ###########################
@@ -276,7 +266,7 @@ rule_declaration.set_action(lambda decl, skip, equal: decl.set_skip(skip))
 
 grammarrule = Rule(
     rule_declaration,
-    production_groups
+    production_group_choices
 ).set_action(lambda decl, rules: decl.set_productions(rules))
 grammarrule.set_name("Grammar Rule")
 
@@ -286,6 +276,6 @@ toplevel = Rule(
     Optional(code)
 )
 
-toplevel.set_action(lambda code, rules, endcode: AstFile(code, rules, endcode))
+toplevel.set_action(lambda code, rules, endcode: AstFile(code.strip() if code else "", rules, endcode.strip() if endcode else ""))
 toplevel.set_skip(space_and_comments)
 toplevel.set_name("Top Level")
