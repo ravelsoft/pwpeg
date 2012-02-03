@@ -98,15 +98,6 @@ regexp = Rule(
 ).set_skip(None).set_action(lambda d, f: _regexp_action(d[1:-1], f))
 
 
-
-###############################
-# { return result }
-action_braced = Rule(
-    Balanced.instanciate(LBRACE, RBRACE, "\\")
-    ).set_action(lambda b: b[1].strip())
-action_braced.set_name("Braced Action")
-
-
 anything_inline = Rule(
     re.compile("[^\n]*")
 )
@@ -147,7 +138,6 @@ action_single_line.set_skip(None)
 ###############################
 # {}, ->, -> \n
 action = Either(
-    action_braced,
     action_multi_line,
     action_single_line
 )
@@ -169,7 +159,7 @@ external_rule = Either(
 predicate = Rule(
     "&",
     balanced_braces
-).set_action(lambda _0, p: AstPredicate(p[1]))
+).set_action(lambda _0, p: AstPredicate(concat(p[1:-1])))
 
 ###############################
 # rule_ident
