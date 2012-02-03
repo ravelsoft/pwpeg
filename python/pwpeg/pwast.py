@@ -184,70 +184,26 @@ class AstRuleEither(AstRuleGroup):
 
 
 class AstRuleDecl(AstNode):
-    def __init__(self, name, productions):
+    def __init__(self, name):
         self.name = name
-        self.productions = productions
+        self.args = None
+        self.productions = None
         self.skip = None
+
+    def set_productions(self, productions):
+        self.productions = productions
+        return self
+
+    def set_args(self, args):
+        self.args = args
+        return self
 
     def set_skip(self, skip):
         self.skip = skip
         return self
 
     def __repr__(self):
-        args = ""
-        if "args" in self.__dict__ and self.args:
-            args = ", ".join([o[0] for o in self.args])
-            args = "({0})".format(args)
-        return "<{0}{1}> {2}".format(self.name, args, self.rules)
-
-    def to_python(self, ctx=dict(), indent=0):
-        res = []
-
-        ctx = dict(**ctx)
-        actions = ctx["actions"] = []
-
-        skip = ("skip=" + self.skip.to_python(ctx, indent) if self.skip else "")
-
-        name = self.name
-        add_set_rule = ""
-
-        # The rule has some parameters.
-        if name.endswith(")"):
-
-            result = "    return {0}".format(self.rules.to_python(ctx, indent + 4))
-
-            idx = name.find("(")
-            if idx == -1: raise Exception("Incorrect rule name: ends by ) but doesn't have (")
-
-            if name[:idx] in ctx["asked_rules"]:
-                add_set_rule = name[:idx]
-                name = "__" + name
-
-            res.append("@rule({0})".format(skip))
-            res.append("def {0}:".format(name))
-
-            if actions:
-                actions = ["\n".join(["    " + l for l in a.split('\n')]) for a in actions]
-                res.append("\n\n".join(actions))
-
-            res.append(result)
-        else:
-            if name in ctx["asked_rules"]:
-                add_set_rule = name
-                name = "__" + name
-
-            if skip: skip = ", {0}".format(skip)
-            res.append("{0} = Rule({1}, name='{3}'{2})".format(name, self.rules.to_python(ctx, indent), skip, self.name))
-
-            if actions:
-                res.insert(0, "\n\n".join(actions))
-
-        if add_set_rule:
-            res.append("{0}.set_rule(__{0})".format(add_set_rule))
-
-        ctx["seen_rules"].add(self.name)
-        return "\n".join(res)
-
+        return "<{0}{1}>".format(self.name, self.args)
 
 
 class AstFile(AstNode):

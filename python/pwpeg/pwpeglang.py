@@ -175,25 +175,21 @@ predicate = Rule(
     balanced_braces
 ).set_action(lambda _0, p: AstPredicate(p[1]))
 
-
-rulename = Rule(
+###############################
+# rule_ident
+# rule_ident(balanced_paren, args)
+rule_identifier = Rule(
     identifier,
     Optional(balanced_paren)
-).set_action(lambda i, b: i + replace_regexps(concat(b))).set_name("Rule Name")
+).set_action(lambda i, b: AstRuleDecl(i).set_args(replace_regexps(concat(b)))).set_name("Rule Identifier")
 
-either_rule = Rule()
 
-real_rule = Either(
-    regexp,
-    string,
-    Rule(rulename).set_action(lambda x: AstRuleCall(x)),
-    external_rule,
-    either_rule
-).set_action(lambda r: AstRuleSingle(r))
-real_rule.set_name("Real Rule")
-
+###############################
+# identifier:
 label = Rule(identifier, COLON).set_action(lambda name, _2: name).set_name("Production Label")
 
+###############################
+# *, +, ?, <2>, <2,>, <,2>
 repetition = Either(
     Rule("*").set_action(lambda x: (0, -1)),
     Rule("+").set_action(lambda x: (1, -1)),
@@ -203,64 +199,85 @@ repetition = Either(
 )
 repetition.set_name("Repetition Modifier")
 
-ruledecl = Rule().set_name("Rule Declaration")
-rules = Rule().set_name("Rules Repetition")
+rule_declaration = Rule().set_name("Rule Declaration")
+production_group = Rule().set_name("Production Group")
+production_alternative = Rule().set_name("Production Alternatives")
 
-full_rule = Rule(
+###############################
+# [ rule1 | rule2 ]
+production_alternative.set_productions(
+    LBRACKET,
+    OneOrMoreSeparated.instanciate(production_group, PIPE),
+    RBRACKET
+).set_action(lambda _1, rules, _2: AstRuleEither(rules))
+production_alternative.set_name("Rule Choices")
+
+
+production = Rule(
     Optional(label),
-    Not(ruledecl),
-    real_rule,
+    # The following is to prevent the parser from eating up a rule name
+    # that serves in a subsequent rule declaration.
+    Not(rule_declaration),
+    Either(
+        regexp,
+        string,
+        Rule(rule_identifier).set_action(lambda d: AstRuleCall(d)),
+        external_rule,
+        production_alternative
+    ).set_action(lambda r: AstRuleSingle(r)),
     Optional(repetition)
 )
-full_rule.set_action(lambda label, rule, rep: rule.set_label(label).set_repetition(rep))
-full_rule.set_name("Full Rule")
+production.set_action(lambda label, rule, rep: rule.set_label(label).set_repetition(rep))
+production.set_name("Production")
+
 
 ###############################
 # !rule &rule
-# Not or Look Ahead
-match_rule = Rule(
+# Basically, this is a look-ahead
+look_ahead = Rule(
     Either("!", "&"),
-    real_rule,
+    production,
     Optional(repetition)
 )
-match_rule.set_action(lambda sym, rule, rep: rule.set_repetition(rep).set_matching(sym))
-match_rule.set_name("Matching Rule")
+look_ahead.set_action(lambda symbol, prod, rep: prod.set_repetition(rep).set_matching(symbol))
+look_ahead.set_name("Look Ahead")
 
-either_rule.set_subrules(
-    LBRACKET,
-    OneOrMoreSeparated.instanciate(rules, PIPE),
-    RBRACKET
-).set_action(lambda _1, rules, _2: AstRuleEither(rules))
-either_rule.set_name("Rule Choices")
 
-production_rule = Rule(
+###############################
+# A single production rule
+production_group.set_productions(
     OneOrMore(Either(
-        match_rule,
-        full_rule,
+        look_ahead,
+        production,
         predicate
     )),
     Optional(action)
 ).set_action(lambda x, a: AstRuleGroup(x, a))
-production_rule.set_name("Production Rule")
+production_group.set_name("Production Group")
 
-rules.set_subrules(
-    OneOrMoreSeparated.instanciate(production_rule, PIPE)
+
+production_groups = Rule(
+    OneOrMoreSeparated.instanciate(production_group, PIPE)
 ).set_action(lambda x: AstRuleEither(x))
-rules.set_name("Production Rules")
+production_groups.set_name("Production Rules")
 
 
 ####################### Rule declaration ###########################
 
-ruledecl.set_subrules(
-    rulename,
-    Optional("skip", real_rule).set_action(lambda _, rule: rule),
+###############################
+# rule_name =
+# rule_name(args) =
+rule_declaration.set_productions(
+    rule_identifier,
+    Optional("skip", production).set_action(lambda _, rule: rule),
     EQUAL
-).set_name("Rule Declaration")
+).set_name("Rule Identifier")
+rule_declaration.set_action(lambda decl, skip, equal: decl.set_skip(skip))
 
 grammarrule = Rule(
-    ruledecl,
-    rules
-).set_action(lambda decl, rules: AstRuleDecl(decl[0], rules).set_skip(None))
+    rule_declaration,
+    production_groups
+).set_action(lambda decl, rules: decl.set_productions(rules))
 grammarrule.set_name("Grammar Rule")
 
 toplevel = Rule(

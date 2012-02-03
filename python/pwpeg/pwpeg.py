@@ -91,21 +91,22 @@ class Rule(object):
     def __init__(self, *args):
         self.action = None
         self.name = ""
+        self.productions = None
 
         if len(args) > 0:
-            self.set_subrules(*args)
+            self.set_productions(*args)
 
 
-    def set_subrules(self, *args):
+    def set_productions(self, *args):
         if len(args) == 0:
             raise Exception("Can not have empty rules")
 
-        self.subrules = [Rule.getrule(r) for r in args]
+        self.productions = [Rule.getrule(r) for r in args]
         self.name = self.__class__.__name__
-        self.post_subrule_name(", ".join([s.name for s in self.subrules]))
+        self.post_subrule_name(", ".join([s.name for s in self.productions]))
         return self
 
-    def post_subrule_name(self, subrules_names):
+    def post_subrule_name(self, productions_names):
         pass
 
     def set_skip(self, skip):
@@ -129,7 +130,10 @@ class Rule(object):
 
         if skip is None and "skip" in self.__dict__: skip = self.skip
 
-        for i, r in enumerate(self.subrules):
+        if not self.productions:
+            raise Exception("There are no productions defined for " + self.name)
+
+        for i, r in enumerate(self.productions):
             subrule_result = None
 
             if skip:
@@ -240,7 +244,7 @@ class FunctionRule(Rule):
 
     def set_fn(self, fn):
         args, varargs, keywords, defaults = inspect.getargspec(fn)
-        if keywords or defaults:
+        if keywords:
             raise Exception("Function rules functions can only take simple args")
 
         self.fn = fn
@@ -388,8 +392,8 @@ class Not(Rule):
             return 0, IgnoreResult
         raise SyntaxError(u("In <{0}> Matched \"{0}\"").format(self.name, input[adv]))
 
-    def post_subrule_name(self, subrules):
-        self.name = "Not " + subrules
+    def post_subrule_name(self, productions):
+        self.name = "Not " + productions
 
 
 
@@ -427,7 +431,7 @@ class Either(Rule):
     def parse(self, input, currentresults=None, skip=None):
         all_errors = []
 
-        for rule in self.subrules:
+        for rule in self.productions:
             try:
                 adv, res = rule.parse(input, currentresults, skip)
                 if self.action:
