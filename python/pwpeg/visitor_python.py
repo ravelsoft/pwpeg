@@ -6,4 +6,5 @@ class PythonVisitor(Visitor):
         pass
 
     def visit_AstFile(self, node):
-        return node.code
+
+        return "{0}\n{1}".format(node.code, node.endcode)

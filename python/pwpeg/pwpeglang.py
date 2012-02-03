@@ -79,7 +79,7 @@ empty_lines = Rule(re.compile("([ \t]*\n)*", re.M))
 
 number = Rule(re.compile("-?[0-9]+")).set_action(lambda n: int(n))
 
-starting_code = Rule("%%", re.compile("((?!%%).)*", re.DOTALL), "%%").set_action(lambda b, t, e: t)
+code = Rule("%%", re.compile("((?!%%).)*", re.DOTALL), "%%").set_action(lambda b, t, e: t)
 
 ##############################################################################################
 
@@ -137,7 +137,7 @@ def _action_multi_line():
         )
     )
 
-action_multi_line = ParametrizableRule(_action_multi_line)
+action_multi_line = FunctionRule(_action_multi_line)
 action_multi_line.set_action(lambda sp, arrow, more_space, eol, code: "\n".join([t[1] for t in code]))
 action_multi_line.set_skip(None).set_name("Multi Line Action")
 
@@ -264,11 +264,11 @@ grammarrule = Rule(
 grammarrule.set_name("Grammar Rule")
 
 toplevel = Rule(
-    Optional(starting_code),
-    OneOrMore(grammarrule)
+    Optional(code),
+    OneOrMore(grammarrule),
+    Optional(code)
 )
 
-toplevel.set_action(lambda code, rules: AstFile(code, rules))
+toplevel.set_action(lambda code, rules, endcode: AstFile(code, rules, endcode))
 toplevel.set_skip(space_and_comments)
 toplevel.set_name("Top Level")
-

@@ -225,7 +225,7 @@ class Predicate(Rule):
         return 0, IgnoreResult
 
 
-class ParametrizableRule(Rule):
+class FunctionRule(Rule):
     """ A rule that takes arguments.
     """
 
@@ -241,7 +241,7 @@ class ParametrizableRule(Rule):
     def set_fn(self, fn):
         args, varargs, keywords, defaults = inspect.getargspec(fn)
         if keywords or defaults:
-            raise Exception("Parametrizable rules functions can only take simple args")
+            raise Exception("Function rules functions can only take simple args")
 
         self.fn = fn
         self.name = fn.__name__
@@ -252,9 +252,7 @@ class ParametrizableRule(Rule):
         r = self.fn(*args).set_name(self.name + arg_names)
 
         if self.action:
-            def _act(*a):
-                return self.action( *(args + a))
-            r.set_action(_act)
+            r.set_action(self.action)
 
         if "skip" in self.__dict__:
             r.set_skip(self.skip)

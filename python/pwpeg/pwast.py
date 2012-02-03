@@ -184,9 +184,9 @@ class AstRuleEither(AstRuleGroup):
 
 
 class AstRuleDecl(AstNode):
-    def __init__(self, name, rules):
+    def __init__(self, name, productions):
         self.name = name
-        self.rules = rules
+        self.productions = productions
         self.skip = None
 
     def set_skip(self, skip):
@@ -252,29 +252,10 @@ class AstRuleDecl(AstNode):
 
 class AstFile(AstNode):
 
-    def __init__(self, code, rules):
+    def __init__(self, code, rules, endcode):
         self.code = code or ""
         self.rules = rules
+        self.endcode = endcode or ""
 
     def __repr__(self):
-        return "{0}{1}".format(self.code, self.rules)
-
-    def to_python(self, ctx=dict(), indent=0):
-        ctx["last_action"] = [0]
-        ctx["seen_rules"] = set([n for n in helpers.__dict__.keys()] + \
-            [n for n in pwpeg.__dict__.keys()] + ["None"])
-        ctx["asked_rules"] = set()
-
-        rules = [r.to_python(ctx, indent) for r in self.rules]
-        asked = [ "{0} = ForwardRule()".format(name) for name in ctx["asked_rules"] ]
-        if asked:
-            asked.append("")
-
-        return "\n".join(["import re\n",
-            "from pwpeg import *",
-            "from pwpeg.helpers import *",
-            "\n" + self.code,
-            "\n\n".join(asked),
-            "\n\n".join(rules)
-        ])
-
+        return "{0}{1}{2}".format(self.code, self.rules, self.endcode)

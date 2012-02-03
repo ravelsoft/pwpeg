@@ -15,7 +15,7 @@ def _AllBut(but, escape):
         )
     )
 
-AllBut = ParametrizableRule(_AllBut).set_skip(None)
+AllBut = FunctionRule(_AllBut).set_skip(None)
 AllBut.set_name("All But")
 
 
@@ -23,7 +23,7 @@ def _Balanced(start, end, escape):
     """
     """
 
-    balanced_inside = ParametrizableRule()
+    balanced_inside = FunctionRule()
 
     def __balanced_inside():
         return Either(
@@ -39,7 +39,7 @@ def _Balanced(start, end, escape):
 
     return Rule(start, ZeroOrMore(balanced_inside), end).set_action(lambda s, l, e: [s] + l + [e])
 
-Balanced = ParametrizableRule(_Balanced).set_skip(None)
+Balanced = FunctionRule(_Balanced).set_skip(None)
 Balanced.set_name("Balanced")
 
 
@@ -48,45 +48,44 @@ def _DelimitedBy(char, escape):
     """
 
     return char, AllBut.instanciate(char, escape), char
-DelimitedBy = ParametrizableRule(_DelimitedBy).set_skip(None)
+DelimitedBy = FunctionRule(_DelimitedBy).set_skip(None)
 
 def _RepeatingSeparated(rule, separator, at_least, at_most):
     """
     """
+    def _repeat_action(first, rest):
+        rest.insert(0, first)
+        return rest
+
     if at_most == -1:
         # This is just so that it is equal to -1 in the end.
         at_most = 0
 
     if at_least == 0:
-        return Optional(rule, Repetition(0, at_most - 1, separator, rule)).set_action(lambda _1, r: r)
+        return Optional(rule, Repetition(0, at_most - 1, separator, rule)).set_action(lambda _1, r: r).set_action(_repeat_action)
 
-    return Rule(rule, Repetition(at_least - 1, at_most - 1, separator, rule).set_action(lambda _1, _2: _2))
+    return Rule(rule, Repetition(at_least - 1, at_most - 1, separator, rule).set_action(lambda _1, _2: _2)).set_action(_repeat_action)
 
-RepeatingSeparated = ParametrizableRule(_RepeatingSeparated)
-
-def _repeat_action(rule, separator, at_lesat, at_most, first, rest):
-    rest.insert(0, first)
-    return rest
-RepeatingSeparated.set_action(_repeat_action)
+RepeatingSeparated = FunctionRule(_RepeatingSeparated)
 
 def _ZeroOrMoreSeparated(rules, sep):
     return RepeatingSeparated.instanciate(rules, sep, 0, -1)
-ZeroOrMoreSeparated = ParametrizableRule(_ZeroOrMoreSeparated)
+ZeroOrMoreSeparated = FunctionRule(_ZeroOrMoreSeparated)
 
 
 def _OneOrMoreSeparated(rules, sep):
     return RepeatingSeparated.instanciate(rules, sep, 1, -1)
-OneOrMoreSeparated = ParametrizableRule(_OneOrMoreSeparated)
+OneOrMoreSeparated = FunctionRule(_OneOrMoreSeparated)
 
 
 def _ExactlySeparated(how_much, rules, sep):
     return RepeatingSeparated.instanciate(rules, sep, how_much, how_much)
-ExactlySeparated = ParametrizableRule(_ExactlySeparated)
+ExactlySeparated = FunctionRule(_ExactlySeparated)
 
 
 def _RepetitionSeparated(at_least, at_most, rules, sep):
     return RepeatingSeparated.instanciate(rules, sep, at_least, at_most)
-RepetitionSeparated = ParametrizableRule(_RepetitionSeparated)
+RepetitionSeparated = FunctionRule(_RepetitionSeparated)
 
 
 re_more_indent = re.compile("[ \t]+")
@@ -110,17 +109,17 @@ def ra_tree_from_list_rightmost(rightmost, lst, action, idx=0):
                   ra_tree_from_list_rightmost(rightmost, lst, action, idx + 1)) if lst and idx < len(lst) else action(rightmost, None, None)
 
 
-def _LeftAssociative(op_ParametrizableRule, sub_ParametrizableRule):
+def _LeftAssociative(op_FunctionRule, sub_FunctionRule):
 
     def reverse(leftmost, lst, idx=-1):
         """ Recursive function to make what we parsed as a left-associative succession of operators.
         """
         return la_tree_from_list_leftmost(leftmost, lst, action, idx)
 
-    return Rule(sub_ParametrizableRule, ZeroOrMore(op_ParametrizableRule, sub_ParametrizableRule)).set_action(reverse)
-LeftAssociative = ParametrizableRule(_LeftAssociative)
+    return Rule(sub_FunctionRule, ZeroOrMore(op_FunctionRule, sub_FunctionRule)).set_action(reverse)
+LeftAssociative = FunctionRule(_LeftAssociative)
 
-def _RightAssociative(op_ParametrizableRule, sub_ParametrizableRule):
+def _RightAssociative(op_FunctionRule, sub_FunctionRule):
 
     def _act(left, opt, idx=0):
         """ Recursive function to make what we parsed as a left-associative succession of operators.
@@ -128,10 +127,10 @@ def _RightAssociative(op_ParametrizableRule, sub_ParametrizableRule):
 
         return action(left) if not opt else action(left, opt[0], opt[1])
 
-    self_recurse = R("RightAssociative", op_ParametrizableRule, sub_ParametrizableRule, action)
+    self_recurse = R("RightAssociative", op_FunctionRule, sub_FunctionRule, action)
 
-    return Rule(sub_ParametrizableRule, Optional(op_ParametrizableRule, self_recurse)).set_action(_act)
-RightAssociative = ParametrizableRule(_RightAssociative)
+    return Rule(sub_FunctionRule, Optional(op_FunctionRule, self_recurse)).set_action(_act)
+RightAssociative = FunctionRule(_RightAssociative)
 
 ####################################################################
 #       Regexp Helpers
