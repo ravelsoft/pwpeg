@@ -132,7 +132,7 @@ class Rule(object):
         adv_before = 0
         adv_after = 0
 
-        if skip is None and "skip" in self.__dict__: skip = self.skip
+        if "skip" in self.__dict__: skip = self.skip
 
         if not self.productions:
             raise Exception("There are no productions defined for " + self.name)
@@ -483,7 +483,7 @@ class MemoRule(Rule):
     """
 
     def __init__(self, *args):
-        self.memorized = None
+        self.memorized = False
         super(MemoRule, self).__init__(*args)
 
     def parse(self, input, currentresults=None, skip=None):
@@ -494,7 +494,11 @@ class MemoRule(Rule):
             # if act: del self.__dict__["action"]
 
             adv, res = super(MemoRule, self).parse(input, currentresults, skip)
-            self.memorized = res
+            if not isinstance(res, list) and not isinstance(res, tuple):
+                super(MemoRule, self).__init__(res)
+            else:
+                super(MemoRule, self).__init__(*res)
+            self.memorized = True
 
             # return (adv, act(*res)) if act else (adv, res)
             return adv, res

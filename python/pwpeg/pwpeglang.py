@@ -142,6 +142,7 @@ action_single_line = Rule(
     ARROW,
     to_eol
 ).set_action(lambda arrow, line: line.strip()).set_skip(None).set_name("Single Line Action")
+action_single_line.set_skip(None)
 
 ###############################
 # {}, ->, -> \n
@@ -273,9 +274,10 @@ grammarrule.set_name("Grammar Rule")
 toplevel = Rule(
     Optional(code),
     OneOrMore(grammarrule),
-    Optional(code)
+    Optional(code),
+    Optional(blanks)
 )
 
-toplevel.set_action(lambda code, rules, endcode: AstFile(code.strip() if code else "", rules, endcode.strip() if endcode else ""))
+toplevel.set_action(lambda code, rules, endcode, blanks: AstFile(code.strip() if code else "", rules, endcode.strip() if endcode else ""))
 toplevel.set_skip(space_and_comments)
 toplevel.set_name("Top Level")
