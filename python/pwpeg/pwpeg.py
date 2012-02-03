@@ -64,6 +64,48 @@ class Results(list):
         return self[self.dict[name]]
 
 
+class Input(object):
+    def __init__(self, input):
+        self.input = text
+        self.pos = 0
+        self.line = 0
+        self.column = 0
+
+    def advance(self, n):
+        self.pos += n
+
+    def rewind(self, n):
+        self.pos -= n
+
+class TextInput(Input):
+    def startswith(self, s):
+        if self.input.startswith(s, self.pos):
+            self.advance(s)
+            return s
+        return None
+
+    def match(self, re):
+        m = re.match(self.input, self.pos)
+        if not m:
+            return None
+        self.advance(m.group())
+
+    def advance(self, s):
+        l = len(s)
+        self.newlines += n.count("\n")
+        self.column = l - n.rfind("\n") - 1
+        self.pos += l
+
+    def rewind(self, n):
+        self.newlines -= n.count("\n", self.pos, self.pos - n)
+        self.pos -= n
+        self.column = self.pos - self.input.rfind("\n", 0, self.pos) - 1
+
+class TokenInput(Input):
+    # FIXME Create token input.
+    pass
+
+
 class Rule(object):
     """ A Grammar rule.
     """
