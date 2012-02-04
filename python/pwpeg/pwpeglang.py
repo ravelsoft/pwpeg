@@ -87,8 +87,9 @@ string = Either(
     delimitedby_regexp("'", '\\'),
     delimitedby_regexp('"', '\\'),
     # Backslash quoted string
-    Rule(re.compile("\\\\[^ \t\n\[\]\|\)]+")).set_action(lambda s: "'" + s[1:].replace('\'', '\\\'').replace('\\', '\\\\') + "'")
+    Rule(re.compile("\\\\[^ \t\n\[\]\|\)]+")).set_action(lambda s: "'" + s[1:].replace('\'', '\\\'').replace('\\', '\\\\') + "'").set_name("Backslashed String")
 ).set_skip(None)
+string.set_name("String")
 
 
 regexp = Rule(
@@ -96,6 +97,7 @@ regexp = Rule(
     delimitedby_regexp('/', '\\'),
     Optional(re.compile('[idsmlux]+'))
 ).set_skip(None).set_action(lambda d, f: _regexp_action(d[1:-1], f))
+regexp.set_name("Regexp")
 
 
 anything_inline = Rule(
@@ -140,17 +142,8 @@ action_single_line.set_skip(None)
 action = Either(
     action_multi_line,
     action_single_line
-)
+).set_name("Action")
 
-###############################
-# $myrule
-# $(somerule from elsewhere)
-#
-# No checking is performed on these rules.
-external_rule = Either(
-    Rule(DOLLAR, identifier).set_action(lambda d, i: i),
-    Rule(DOLLAR, balanced_paren).set_action(lambda d, b: concat(b))
-).set_skip(None)
 
 #######################################################
 
@@ -160,6 +153,7 @@ predicate = Rule(
     "&",
     balanced_braces
 ).set_action(lambda _0, p: AstPredicate(concat(p[1:-1])))
+predicate.set_name("Predicate")
 
 ###############################
 # rule_ident
@@ -167,7 +161,8 @@ predicate = Rule(
 rule_identifier = Rule(
     identifier,
     Optional(balanced_paren)
-).set_action(lambda i, b: AstRuleDeclaration(i).set_args(replace_regexps(concat(b)))).set_name("Rule Identifier")
+).set_action(lambda i, b: AstRuleDeclaration(i).set_args(replace_regexps(concat(b))))
+rule_identifier.set_name("Rule Identifier")
 
 
 ###############################
@@ -207,10 +202,9 @@ production = Rule(
         Either(
             regexp,
             string,
-            external_rule
         ).set_action(lambda r: AstProduction(r)),
-        Rule(rule_identifier).set_action(lambda d: AstRuleCall(d)),
-        Rule(LBRACKET, production_group_choices, RBRACKET).set_action(lambda _1, alts, _2: alts)
+        Rule(rule_identifier).set_action(lambda d: AstRuleCall(d)).set_name("Rule Call"),
+        Rule(LBRACKET, production_group_choices, RBRACKET).set_action(lambda _1, alts, _2: alts).set_name("Rule Choices")
     ),
     Optional(repetition)
 )
@@ -240,7 +234,6 @@ production_group.set_productions(
     )),
     Optional(action)
 ).set_action(lambda rules, a: AstProductionGroup(rules).set_action(a))
-production_group.set_name("Production Group")
 
 
 ####################### Rule declaration ###########################
@@ -250,9 +243,9 @@ production_group.set_name("Production Group")
 # rule_name(args) =
 rule_declaration.set_productions(
     rule_identifier,
-    Optional("skip", production).set_action(lambda _, rule: rule),
+    Optional(Rule("skip", production).set_action(lambda _, rule: rule)),
     EQUAL
-).set_name("Rule Identifier")
+).set_name("Rule Declaration")
 rule_declaration.set_action(lambda decl, skip, equal: decl.set_skip(skip))
 
 grammarrule = Rule(

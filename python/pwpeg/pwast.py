@@ -40,7 +40,9 @@ class AstProduction(AstNode):
 class AstRuleCall(AstProduction):
     def __init__(self, decl=None, repetition=None):
         self.decl = decl
+        self.label = decl.label
         self.repetition = None
+        self.code= ""
 
 
 class AstLookAhead(AstProduction):
@@ -91,6 +93,7 @@ class AstRuleDeclaration(AstNode):
         self.args = None
         self.productions = None
         self.skip = None
+        self.label = name
 
     def set_productions(self, productions):
         self.productions = productions

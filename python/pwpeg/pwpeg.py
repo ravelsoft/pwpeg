@@ -21,19 +21,16 @@ class SyntaxError(Exception):
         chain to get to the first Choice() it finds to keep looking
         for a match.
     """
-    def __init__(self, error, advanced="", suberrors=[]):
+    def __init__(self, error, input, suberrors=[]):
         super(SyntaxError, self).__init__(error)
         self.suberrors = suberrors
-        self.advanced = advanced + "".join([e.advanced for e in suberrors])
+        self.line = input.line
+        self.column = input.column
+        self.pos = input.pos
+        self.message += "({0}:{1})".format(self.line, self.column)
 
     def fullmessage(self):
-        return self.message +"\n" + "\n".join([ "\n".join(["   " + line for line in e.fullmessage().split("\n")]) for e in self.suberrors])
-
-    def complete(self):
-        column = len(self.advanced.split("\n")[-1])
-        nlines = self.advanced.count("\n")
-
-        return u("Line {0}, column {1}, {2}\n").format(nlines, column, self.fullmessage())
+        return self.message + "\n" + "\n".join([ "\n".join(["   " + line for line in e.fullmessage().split("\n")]) for e in self.suberrors])
 
 
 class IgnoreResult(object):
@@ -49,7 +46,7 @@ class Results(list):
     """
     """
 
-    def __init__(self, name):
+    def __init__(self, name=""):
         self.name = name
         self.dict = {}
 
@@ -63,19 +60,32 @@ class Results(list):
     def get(self, name, default=None):
         return self[self.dict[name]]
 
+    def append(self, obj):
+        if isinstance(obj, list) and len(obj) == 1:
+            super(Results, self).append(obj[0])
+        else:
+            super(Results, self).append(obj)
+
 
 class Input(object):
     def __init__(self, input):
-        self.input = text
+        self.input = input
         self.pos = 0
-        self.line = 0
-        self.column = 0
-
-    def advance(self, n):
-        self.pos += n
+        self.line = 1
+        self.column = 1
 
     def rewind(self, n):
         self.pos -= n
+
+    def rewind_to(self, pos):
+        self.rewind(self.pos - pos)
+
+    def has_next(self):
+        return self.pos < len(self.input)
+
+    def current(self):
+        return self.input[self.pos] if self.has_next() else None
+
 
 class TextInput(Input):
     def startswith(self, s):
@@ -88,18 +98,27 @@ class TextInput(Input):
         m = re.match(self.input, self.pos)
         if not m:
             return None
-        self.advance(m.group())
+        matched = m.group()
+        self.advance(matched)
+        return matched
 
     def advance(self, s):
+        if not s: return
+
         l = len(s)
-        self.newlines += n.count("\n")
-        self.column = l - n.rfind("\n") - 1
+        self.line += s.count("\n")
+        self.column = l - s.rfind("\n") - 1
         self.pos += l
 
     def rewind(self, n):
-        self.newlines -= n.count("\n", self.pos, self.pos - n)
+        """
+        """
+
+        self.line -= self.input.count("\n", self.pos - n, self.pos)
         self.pos -= n
-        self.column = self.pos - self.input.rfind("\n", 0, self.pos) - 1
+        self.column = self.pos - self.input.rfind("\n", 0, self.pos)
+
+
 
 class TokenInput(Input):
     # FIXME Create token input.
@@ -140,6 +159,9 @@ class Rule(object):
 
 
     def set_productions(self, *args):
+        """
+        """
+
         if len(args) == 0:
             raise Exception("Can not have empty rules")
 
@@ -148,7 +170,7 @@ class Rule(object):
         else:
             self.productions = args
 
-        self.name = self.__class__.__name__
+        self.name = "_"
         self.post_subrule_name(", ".join([s.name for s in self.productions]))
         return self
 
@@ -167,59 +189,37 @@ class Rule(object):
     def parse(self, input, currentresults=None, skip=None):
         """ Execute the rules
         """
-
-        advanced = 0
         results = Results(self.name)
-
-        adv_before = 0
-        adv_after = 0
 
         if "skip" in self.__dict__: skip = self.skip
 
         if not self.productions:
             raise Exception("There are no productions defined for " + self.name)
 
-        for i, r in enumerate(self.productions):
+        pos_save = input.pos
+
+        for r in self.productions:
             subrule_result = None
 
             if skip:
                 try:
-                    adv, res = skip.parse(input[advanced:])
-                    adv_before = advanced
-                    advanced += adv
-                    adv_after = advanced
+                    skip.parse(input, Results())
                 except SyntaxError as e:
                     # Nothing to skip.
                     pass
 
             try:
-                subrule_result = r.parse(input[advanced:], results, skip)
+                r.parse(input, results, skip)
             except SyntaxError as e:
-                raise SyntaxError(u("In {0}:").format(self.name), input[:advanced], [e])
+                input.rewind_to(pos_save)
+                raise SyntaxError(u("In {0} ").format(self.name), input, [e])
 
-            # If everything went according to plan, the subrule_result is a tuple
-            # with the number of consumed characters and the result of the processing
-            # of the rule.
-            sub_adv, sub_processed_result = subrule_result
-
-            advanced += sub_adv
-
-            if sub_processed_result is not IgnoreResult:
-                results.append(sub_processed_result)
-
-        # Restoring advancement before skip if skipping was the last thing we did.
-        if advanced == adv_after: advanced = adv_before
 
         if self.action:
-            return advanced, self.action(*results)
+            currentresults.append(self.action(*results))
+            return
 
-        if len(results) == 1:
-            # When a rule does not send more than one result,
-            # we simplify it so that we don't have to always manipulate
-            # arrays.
-            return advanced, results[0]
-
-        return advanced, results
+        currentresults.append(results)
 
 
     def __repr__(self):
@@ -247,8 +247,9 @@ class StringRule(Rule):
 
     def parse(self, input, currentresults=None, skip=None):
         if input.startswith(self.string):
-            return len(self.string), self.string
-        raise SyntaxError(u("Expected {0}, but found \"{1}\"...").format(self.name, input[:5]))
+            currentresults.append(self.string)
+        else:
+            raise SyntaxError(u("Expected {0}, but found \"{1}\"").format(self.name, input.current()), input)
 
 
 class RegexpRule(Rule):
@@ -257,10 +258,11 @@ class RegexpRule(Rule):
         self.name = "/" + self.regexp.pattern + "/"
 
     def parse(self, input, currentresults=None, skip=None):
-        m = self.regexp.match(input)
-        if m:
-            return len(m.group()), m.group()
-        raise SyntaxError(u("Expected {0}, but found \"{1}\"...").format(self.name, input[:5]))
+        match = input.match(self.regexp)
+        if match:
+            currentresults.append(match)
+        else:
+            raise SyntaxError(u("Expected {0}, but found \"{1}\"").format(self.name, input.current()), input)
 
 
 class Predicate(Rule):
@@ -272,7 +274,6 @@ class Predicate(Rule):
         if self.fn(*currentresults) is False:
             # None actually is a valid result.
             raise SyntaxError(u("{0} was not satisfied").format(self.name))
-        return 0, IgnoreResult
 
 
 class FunctionRule(Rule):
@@ -336,30 +337,24 @@ class Repetition(Rule):
         times = 0
         _from, _to = self._from, self._to
 
-        advance = 0
+        save_pos = input.pos
         last_error = []
 
-        while advance < len(input) and (_to == -1 or times < _to):
+        while input.has_next() and (_to == -1 or times < _to):
             try:
                 # Get the resultss.
-                adv, res = super(Repetition, self).parse(input[advance:], currentresults, skip)
+                super(Repetition, self).parse(input, results, skip)
+                times += 1
             except SyntaxError as e:
                 last_error.append(e.suberrors[0])
                 break
 
-            # Parsing was successful, so we add it to the results.
-            advance += adv
-
-            if res is not IgnoreResult:
-                results.append(res)
-
-            # We repeated one more time !
-            times += 1
 
         if _from != -1 and times < _from:
-            raise SyntaxError(u("{1} needs to be repeated at least {0} times").format(_from, self.name), input[:advance], last_error)
+            input.rewind_to(save_pos)
+            raise SyntaxError(u("{1} needs to be repeated at least {0} times").format(_from, self.name), input, last_error)
 
-        return advance, results
+        currentresults.append(results)
 
     def post_subrule_name(self, sn):
         self.name = sn + u("<{0}, {1}>").format(self._from, self._to)
@@ -408,12 +403,13 @@ class Optional(Repetition):
 
 
     def parse(self, input, currentresults=None, skip=None):
-        adv, res = super(Optional, self).parse(input, currentresults, skip)
+        results = Results()
+        super(Optional, self).parse(input, results, skip)
 
-        if len(res) == 0:
-            return 0, None
-
-        return adv, res[0]
+        if len(results) == 0:
+            currentresults.append(None)
+        else:
+            currentresults.append(results[0])
 
     def post_subrule_name(self, sn):
         self.name = "[" + sn + "]?"
@@ -430,13 +426,18 @@ class Not(Rule):
     """
 
     def parse(self, input, currentresults=None, skip=None):
+        save_pos = input.pos
+        results = Results()
         try:
-            adv, res = super(Not, self).parse(input, currentresults, skip)
+            # Results are ignored.
+            super(Not, self).parse(input, results, skip)
         except SyntaxError as e:
             # Couldn't match the next rule, which is what we want, so
-            # we return a result that won't advance the parser.
-            return 0, IgnoreResult
-        raise SyntaxError(u("In <{0}> Matched \"{0}\"").format(self.name, input[adv]))
+            # we just restore the parser's position so it will continue
+            # parsing as normal.
+            return
+        input.rewind_to(save_pos)
+        raise SyntaxError(u("In <{0}> Matched \"{1}\"").format(self.name, results), input)
 
     def post_subrule_name(self, productions):
         self.name = "Not " + productions
@@ -455,12 +456,14 @@ class And(Rule):
 
 
     def parse(self, input, currentresults=None, skip=None):
+        results = Results() # We're going to ignore any results.
+        save_pos = input.pos
         # Try to parse our rules
-        super(And, self).parse(input, rules, skip)
+        super(And, self).parse(input, results, skip)
 
         # If there was no error, we don't advance, which is what we want.
         # A syntax error is raised otherwise in our super() parse.
-        return 0, IgnoreResult
+        input.rewind_to(save_pos)
 
     def post_subrule_name(self, sn):
         self.name = u("Look-Ahead {0}").format(sn)
@@ -476,25 +479,29 @@ class Either(Rule):
 
     def parse(self, input, currentresults=None, skip=None):
         all_errors = []
+        results = Results()
 
         for rule in self.productions:
             try:
-                adv, res = rule.parse(input, currentresults, skip)
+                rule.parse(input, results, skip)
+                res = results[0]
+
                 if self.action:
-                    return adv, self.action(res)
-                return adv, res
+                    currentresults.append(self.action(res))
+                else:
+                    currentresults.append(res)
+                return
             except SyntaxError as e:
                 all_errors.append(e)
-                # FIXME should store the error
-
                 # We continue since the SyntaxError just means that we didn't match and
                 # must try the next choice.
                 continue
 
-        raise SyntaxError(u("In [{0}], none of the provided choices matched").format(self.name), "", all_errors)
+        raise SyntaxError(u("In [{0}], none of the provided choices matched").format(self.name), input, all_errors)
 
     def post_subrule_name(self, subn):
-        self.name = u("either {0}").format(subn)
+        self.name = u("either({0})").format(subn)
+
 
 class Any(Rule):
     def __init__(self):
@@ -503,22 +510,22 @@ class Any(Rule):
     def parse(self, input, currentresults=None, skip=None):
         if skip is None and "skip" in self.__dict__: skip = self.skip
 
-        advanced = 0
+        save_pos = input.pos
 
         if skip:
             try:
-                adv, res = skip.parse(input[advanced:])
-                adv_before = advanced
-                advanced += adv
-                adv_after = advanced
+                skip.parse(input, Results())
             except SyntaxError as e:
                 # Nothing to skip.
                 pass
 
-        if not input[advanced:]:
-            raise SyntaxError("Want anything, but no more input", input[:advanced])
+        if not input.has_next():
+            input.rewind_to(save_pos)
+            raise SyntaxError("Want anything, but no more input", input)
 
-        return advanced + 1, input[advanced]
+        any = input.current()
+        input.advance(any)
+        currentresults.append(any)
 
 class MemoRule(Rule):
     """ A rule that memorizes itself for future uses.
@@ -535,18 +542,17 @@ class MemoRule(Rule):
             # act = self.__dict__.get("action", None)
             # if act: del self.__dict__["action"]
 
-            adv, res = super(MemoRule, self).parse(input, currentresults, skip)
+            super(MemoRule, self).parse(input, currentresults, skip)
+
+            res = currentresults[len(currentresults) - 1]
             if not isinstance(res, list) and not isinstance(res, tuple):
                 super(MemoRule, self).__init__(res)
             else:
                 super(MemoRule, self).__init__(*res)
             self.memorized = True
-
-            # return (adv, act(*res)) if act else (adv, res)
-            return adv, res
         else:
-            adv, res = super(MemoRule, self).parse(input, currentresults, skip)
-            return adv, res
+            # The rule is now memorized, and we can execute it.
+            super(MemoRule, self).parse(input, currentresults, skip)
 
 
 class Parser(object):
@@ -572,13 +578,17 @@ class Parser(object):
             integrality of the input.
         """
 
-        result = self.toprule.parse(input)
+        input = TextInput(input)
+        results = Results()
+        self.toprule.parse(input, results)
 
-        if result[0] != len(input):
-            raise Exception(u("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'").format(input[result[0]:]))
+        if input.has_next():
+            raise Exception(u("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'").format(input))
 
         # Everything went fine, sending the results.
-        return result[1]
+        if len(results) == 1:
+            return results[0]
+        return results
 
 
     def partial_parse(self, input, *args, **kwargs):

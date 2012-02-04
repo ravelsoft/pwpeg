@@ -31,5 +31,5 @@ if __name__ == "__main__":
             #print(res.to_python())
         except SyntaxError as e:
             import sys
-            sys.stderr.write(e.complete())
+            sys.stderr.write(e.fullmessage() + "\n")
 
