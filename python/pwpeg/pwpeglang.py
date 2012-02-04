@@ -135,6 +135,7 @@ action_single_line = Rule(
     ARROW,
     to_eol
 ).set_action(lambda arrow, line: line.strip()).set_skip(None).set_name("Single Line Action")
+
 action_single_line.set_skip(None)
 
 ###############################

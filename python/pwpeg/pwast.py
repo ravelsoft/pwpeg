@@ -12,7 +12,7 @@ class AstNode(object):
 
 class AstProduction(AstNode):
     def __init__(self, code=None, repetition=None):
-        self.label = None
+        self.label = ""
         self.code = code
         self.repetition = None
         self.matching = None
@@ -84,7 +84,16 @@ class AstProductionGroup(AstProduction):
 
 
 class AstProductionChoices(AstProductionGroup):
-    pass
+    def __repr__(self):
+        rules = " | ".join([repr(r) for r in self.rules])
+
+        action = ""
+
+        if self.action:
+            action = " ({0})".format(repr(self.action))
+
+        return "{0}{1}".format(rules, action)
+
 
 
 class AstRuleDeclaration(AstNode):

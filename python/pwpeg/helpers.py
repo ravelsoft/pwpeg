@@ -62,9 +62,21 @@ def _RepeatingSeparated(rule, separator, at_least, at_most):
         at_most = 0
 
     if at_least == 0:
-        return Optional(rule, Repetition(0, at_most - 1, separator, rule)).set_action(lambda _1, r: r).set_action(_repeat_action)
+        return Optional(
+            rule,
+            Repetition(0, at_most - 1,
+                separator,
+                rule
+            ).set_action(lambda l: map(lambda e: e[1], l))
+        ).set_action(_repeat_action)
 
-    return Rule(rule, Repetition(at_least - 1, at_most - 1, separator, rule).set_action(lambda _1, _2: _2)).set_action(_repeat_action)
+    return Rule(
+        rule,
+        Repetition(at_least - 1, at_most - 1,
+            separator,
+            rule
+        ).set_action(lambda res: map(lambda x: x[1], res))
+    ).set_action(_repeat_action)
 
 RepeatingSeparated = FunctionRule(_RepeatingSeparated)
 

@@ -60,12 +60,6 @@ class Results(list):
     def get(self, name, default=None):
         return self[self.dict[name]]
 
-    def append(self, obj):
-        if isinstance(obj, list) and len(obj) == 1:
-            super(Results, self).append(obj[0])
-        else:
-            super(Results, self).append(obj)
-
 
 class Input(object):
     def __init__(self, input):
@@ -214,12 +208,14 @@ class Rule(object):
                 input.rewind_to(pos_save)
                 raise SyntaxError(u("In {0} ").format(self.name), input, [e])
 
-
         if self.action:
             currentresults.append(self.action(*results))
             return
 
-        currentresults.append(results)
+        if len(results) == 1:
+            currentresults.append(results[0])
+        else:
+            currentresults.append(results)
 
 
     def __repr__(self):
@@ -328,11 +324,13 @@ class Repetition(Rule):
     def __init__(self, _from, _to, *args):
         self._from = _from
         self._to = _to
-        super(Repetition, self).__init__(*args)
+        self.rule = Rule(*args)
+        super(Repetition, self).__init__()
+        self.post_subrule_name(self.rule.name)
 
 
     def parse(self, input, currentresults=None, skip=None):
-        results = []
+        results = Results(self.name)
 
         times = 0
         _from, _to = self._from, self._to
@@ -343,7 +341,7 @@ class Repetition(Rule):
         while input.has_next() and (_to == -1 or times < _to):
             try:
                 # Get the resultss.
-                super(Repetition, self).parse(input, results, skip)
+                self.rule.parse(input, results, skip)
                 times += 1
             except SyntaxError as e:
                 last_error.append(e.suberrors[0])
@@ -354,7 +352,11 @@ class Repetition(Rule):
             input.rewind_to(save_pos)
             raise SyntaxError(u("{1} needs to be repeated at least {0} times").format(_from, self.name), input, last_error)
 
-        currentresults.append(results)
+        if self.action:
+            # Actions in repetitions are in the form of lists.
+            currentresults.append(self.action(results))
+        else:
+            currentresults.append(results)
 
     def post_subrule_name(self, sn):
         self.name = sn + u("<{0}, {1}>").format(self._from, self._to)
@@ -406,10 +408,10 @@ class Optional(Repetition):
         results = Results()
         super(Optional, self).parse(input, results, skip)
 
-        if len(results) == 0:
+        if len(results[0]) == 0:
             currentresults.append(None)
         else:
-            currentresults.append(results[0])
+            currentresults.append(results[0][0])
 
     def post_subrule_name(self, sn):
         self.name = "[" + sn + "]?"
