@@ -24,7 +24,14 @@ class PythonVisitor(Visitor):
     def compile(self, node):
         self.visit(node)
 
-        res = ["#!/usr/bin/env python"]
+        res = [
+            "#!/usr/bin/env python",
+            ""
+            "from pwpeg import *",
+            "from pwpeg.helpers import *",
+            ""
+        ]
+
         if self.code_start:
             res.append("\n##############################################################\n# Start of included code")
             res.append(self.code_start)
@@ -52,6 +59,17 @@ class PythonVisitor(Visitor):
                     res.append("{0}.set_skip({1})".format(name, r.skip.name))
             res.append("")
 
+        res.append("\n# Function Rules implementation")
+        for name, fr in sorted(self.rules_function.items()):
+            res.append("def _{0}{1}:".format(name, fr.args))
+            for fn in fr.ctx.functions:
+                res.append(indent(fn))
+                res.append("")
+
+            res.append("    return " + indent(fr.code)[4:])
+            res.append("{0}.set_fn(_{0})\n".format(name))
+        res.append("")
+
         res.append("\n# Simple Rules implementation")
         for name, sr in sorted(self.rules_simple.items()):
             for fn in sr.ctx.functions:
@@ -62,16 +80,6 @@ class PythonVisitor(Visitor):
                 res.append("{0}.set_productions(".format(name) + sr.code[5:] + "\n")
             else:
                 res.append("{0}.set_productions(".format(name) + sr.code + ")\n")
-        res.append("")
-
-        res.append("\n# Function Rules implementation")
-        for name, fr in sorted(self.rules_function.items()):
-            res.append("def {0}{1}:".format(name, fr.args))
-            for fn in fr.ctx.functions:
-                res.append(indent(fn))
-                res.append("")
-
-            res.append("    return " + indent(fr.code)[4:] + "\n")
         res.append("")
 
 

@@ -57,7 +57,7 @@ class Visitor(object):
 
     def visit_AstRuleCall(self, node, ctx):
         ctx.add_rule(node)
-        node.code = node.decl.name + (node.decl.args or "")
+        node.code = node.decl.name + (".instanciate" + node.decl.args if node.decl.args else "")
         return self.visit_Repetition(node)
 
     def visit_AstProduction(self, node, ctx):
