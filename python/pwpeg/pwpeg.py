@@ -30,7 +30,7 @@ class SyntaxError(Exception):
 
 
     def fullmessage(self):
-        return self.message + "\n" + "\n".join([ "\n".join(["   " + line for line in e.fullmessage().split("\n")]) for e in self.suberrors])
+        return unicode(self) + "\n" + "\n".join([ "\n".join(["   " + line for line in e.fullmessage().split("\n")]) for e in self.suberrors])
 
 
 class IgnoreResult(object):
@@ -259,7 +259,7 @@ class RegexpRule(Rule):
 
     def parse(self, input, currentresults=None, skip=None):
         match = input.match(self.regexp)
-        if match:
+        if match is not None:
             currentresults.append(match)
         else:
             raise SyntaxError(u("Expected {0}, but found \"{1}\"").format(self.name, input.current()), input)
@@ -294,7 +294,7 @@ class FunctionRule(Rule):
         def parse(self, input, currentresults, skip):
             # if not self.rule: self.rule = self.fn(*self.args).set_action(self.action).set_skip(self.skip)
             if not self.rule:
-                self.rule = self.fn(*self.args).set_action(self.action)
+                self.rule = self.fn(*self.args).set_action(self.action).set_name("*" + self.name)
 
                 if hasattr(self, "skip") and not hasattr(self.rule, "skip"):
                     self.rule.set_skip(self.skip)
@@ -605,7 +605,7 @@ class Parser(object):
 
         input = TextInput(input)
         results = Results()
-        self.toprule.parse(input, results)
+        self.toprule.parse(input, results, None)
 
         if input.has_next():
             raise Exception(u("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'").format(input.input[input.pos:]))

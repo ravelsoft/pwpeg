@@ -152,9 +152,8 @@ action = Either(
 ###############################
 # &{ return True }
 predicate = Rule(
-    "&",
     balanced_braces
-).set_action(lambda _0, p: AstPredicate(concat(p[1:-1])))
+).set_action(lambda p: AstPredicate(concat(p[1:-1])))
 predicate.set_name("Predicate")
 
 ###############################
