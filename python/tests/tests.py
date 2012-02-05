@@ -85,3 +85,13 @@ test(Either(
         "d"
     )
 ), ["a", "b", "c", "d"], ["aa", "", "e"])
+
+def fnrule(token):
+    return Rule(token)
+test([fnrule("a")],
+    ["a"], [""])
+
+def fnrule():
+    return Rule("a")
+test([FunctionRule(fnrule)],
+    ["a"], [""])

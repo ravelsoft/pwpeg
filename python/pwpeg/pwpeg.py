@@ -22,12 +22,12 @@ class SyntaxError(Exception):
         for a match.
     """
     def __init__(self, error, input, suberrors=[]):
-        super(SyntaxError, self).__init__(error)
         self.suberrors = suberrors
         self.line = input.line
         self.column = input.column
         self.pos = input.pos
-        self.message += "({0}:{1})".format(self.line, self.column)
+        super(SyntaxError, self).__init__(error + "({0}:{1})".format(self.line, self.column))
+
 
     def fullmessage(self):
         return self.message + "\n" + "\n".join([ "\n".join(["   " + line for line in e.fullmessage().split("\n")]) for e in self.suberrors])
@@ -228,6 +228,8 @@ class Rule(object):
             This is to be used when the processor function is not directly given to
             the rule in its constructor.
         """
+        if not fn:
+            return self
 
         if inspect.getargspec(fn)[2]:
             raise Exception("Actions can't take kwargs")
@@ -274,7 +276,25 @@ class Predicate(Rule):
 
 class FunctionRule(Rule):
     """ A rule that takes arguments.
+
+        Beware, set_skip and set_action should NOT be set directly on this rule.
     """
+
+    class InstanciatedRule(Rule):
+        def __init__(self, fn, name, args):
+            self.fn = fn
+            self.name = name
+            self.args = args
+            self.action = None
+            self.rule = None
+            # self.skip = None
+
+        def parse(self, input, currentresults, skip):
+            # if not self.rule: self.rule = self.fn(*self.args).set_action(self.action).set_skip(self.skip)
+            if not self.rule: self.rule = self.fn(*self.args).set_action(self.action)
+
+            self.rule.parse(input, currentresults, skip)
+
 
     def __init__(self, fn=None):
         if fn:
@@ -284,6 +304,7 @@ class FunctionRule(Rule):
             self.fn = None
             self.name = "Param rule <no function>"
         self.action = None
+        self.skip = None
 
     def set_fn(self, fn):
         args, varargs, keywords, defaults = inspect.getargspec(fn)
@@ -296,7 +317,8 @@ class FunctionRule(Rule):
 
     def instanciate(self, *args):
         arg_names = u("({0})").format(", ".join([repr(a) for a in args]))
-        r = self.fn(*args).set_name(self.name + arg_names)
+        # r = self.fn(*args).set_name(self.name + arg_names)
+        r = FunctionRule.InstanciatedRule(self.fn, self.name + arg_names, args)
 
         if self.action:
             r.set_action(self.action)
@@ -308,12 +330,9 @@ class FunctionRule(Rule):
 
     def parse(self, input, currentresults=None, skip=None):
         # Works if the rule doesn't need any arguments
-        r = self.instanciate()
+        rule = self.instanciate()
+        rule.parse(input, currentresults, skip)
 
-        if "skip" in self.__dict__:
-            r.set_skip(self.skip)
-
-        return r.parse(input, currentresults, skip)
 
 
 class Repetition(Rule):
@@ -533,9 +552,10 @@ class MemoRule(Rule):
     """ A rule that memorizes itself for future uses.
     """
 
-    def __init__(self, *args):
-        self.memorized = False
-        super(MemoRule, self).__init__(*args)
+    def __init__(self, rule):
+        self.memorized = None
+        self.rule = rule
+        self.name = "Memorizing({0})".format(rule.name)
 
     def parse(self, input, currentresults=None, skip=None):
         """
@@ -543,18 +563,16 @@ class MemoRule(Rule):
         if not self.memorized:
             # act = self.__dict__.get("action", None)
             # if act: del self.__dict__["action"]
-
-            super(MemoRule, self).parse(input, currentresults, skip)
+            self.rule.parse(input, currentresults, skip)
 
             res = currentresults[len(currentresults) - 1]
             if not isinstance(res, list) and not isinstance(res, tuple):
-                super(MemoRule, self).__init__(res)
+                self.memorized = Rule(res)
             else:
-                super(MemoRule, self).__init__(*res)
-            self.memorized = True
+                self.memorized = Rule(*res)
         else:
             # The rule is now memorized, and we can execute it.
-            super(MemoRule, self).parse(input, currentresults, skip)
+            self.memorized.parse(input, currentresults, skip)
 
 
 class Parser(object):
@@ -585,7 +603,7 @@ class Parser(object):
         self.toprule.parse(input, results)
 
         if input.has_next():
-            raise Exception(u("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'").format(input))
+            raise Exception(u("Finished parsing, but all the input was not consumed by the parser. Leftovers: '{0}'").format(input.input[input.pos:]))
 
         # Everything went fine, sending the results.
         if len(results) == 1:
