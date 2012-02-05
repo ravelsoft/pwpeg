@@ -13,9 +13,9 @@ def _AllBut(but, escape):
             Rule(escape, but).set_action(lambda escape, but: but),
             Rule(Not(but), Any())
         )
-    )
+    ).set_skip(None)
 
-AllBut = FunctionRule(_AllBut).set_skip(None)
+AllBut = FunctionRule(_AllBut)
 AllBut.set_name("All But")
 
 
@@ -37,9 +37,9 @@ def _Balanced(start, end, escape):
 
     balanced_inside.set_fn(__balanced_inside)
 
-    return Rule(start, ZeroOrMore(balanced_inside), end).set_action(lambda s, l, e: [s] + l + [e])
+    return Rule(start, ZeroOrMore(balanced_inside), end).set_action(lambda s, l, e: [s] + l + [e]).set_skip(None)
 
-Balanced = FunctionRule(_Balanced).set_skip(None)
+Balanced = FunctionRule(_Balanced)
 Balanced.set_name("Balanced")
 
 

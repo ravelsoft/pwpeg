@@ -116,7 +116,9 @@ class TextInput(Input):
 
 class TokenInput(Input):
     # FIXME Create token input.
-    pass
+
+    def match(self, reg): raise Exception("Token Inputs can't match regexps")
+    def startswith(self, txt): raise Exception("Token Inputs can't match strings")
 
 
 class Rule(object):
@@ -291,7 +293,11 @@ class FunctionRule(Rule):
 
         def parse(self, input, currentresults, skip):
             # if not self.rule: self.rule = self.fn(*self.args).set_action(self.action).set_skip(self.skip)
-            if not self.rule: self.rule = self.fn(*self.args).set_action(self.action)
+            if not self.rule:
+                self.rule = self.fn(*self.args).set_action(self.action)
+
+                if hasattr(self, "skip") and not hasattr(self.rule, "skip"):
+                    self.rule.set_skip(self.skip)
 
             self.rule.parse(input, currentresults, skip)
 
@@ -304,7 +310,6 @@ class FunctionRule(Rule):
             self.fn = None
             self.name = "Param rule <no function>"
         self.action = None
-        self.skip = None
 
     def set_fn(self, fn):
         args, varargs, keywords, defaults = inspect.getargspec(fn)

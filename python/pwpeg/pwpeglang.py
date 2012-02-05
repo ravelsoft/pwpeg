@@ -123,9 +123,9 @@ def _action_multi_line():
                 Rule(blanks, EOL),
             )
         )
-    ).set_name("*Multi Line Action").set_skip(None)
+    ).set_name("*Multi Line Action")
 
-action_multi_line = FunctionRule(_action_multi_line)
+action_multi_line = FunctionRule(_action_multi_line).set_skip(None)
 #action_multi_line = _action_multi_line()
 action_multi_line.set_action(lambda sp, arrow, more_space, eol, code: "\n".join([t[1] for t in code]))
 action_multi_line.set_name("Multi Line Action")
