@@ -273,7 +273,7 @@ class Predicate(Rule):
     def parse(self, input, currentresults=[], skip=None):
         if self.fn(*currentresults) is False:
             # None actually is a valid result.
-            raise SyntaxError(u("{0} was not satisfied").format(self.name))
+            raise SyntaxError(u("{0} was not satisfied").format(self.name), input)
 
 
 class FunctionRule(Rule):
