@@ -171,7 +171,7 @@ class Rule(object):
         return self
 
     def post_subrule_name(self, productions_names):
-        pass
+        self.name = productions_names
 
     def set_skip(self, skip):
         self.skip = Rule.getrule(skip)

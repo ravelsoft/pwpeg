@@ -49,8 +49,8 @@ class Visitor(object):
             return node.code
 
     def visit_AstLookAhead(self, node, ctx):
-        ctx.add_rule(node)
-        return ("Not(" if node.symbol == "!" else "And(") + self.visit(node.production, ctx) + ")"
+        nctx = Context()
+        return ("Not(" if node.symbol == "!" else "And(") + self.visit(node.production, nctx) + ")"
 
     def visit_AstPredicate(self, node, ctx):
         return self.compile_function(node.code, ctx)
