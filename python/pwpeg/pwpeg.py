@@ -294,12 +294,20 @@ class FunctionRule(Rule):
         def parse(self, input, currentresults, skip):
             # if not self.rule: self.rule = self.fn(*self.args).set_action(self.action).set_skip(self.skip)
             if not self.rule:
-                self.rule = self.fn(*self.args).set_action(self.action).set_name("*" + self.name)
+                self.rule = self.fn(*self.args).set_name("*" + self.name)
 
                 if hasattr(self, "skip") and not hasattr(self.rule, "skip"):
                     self.rule.set_skip(self.skip)
 
-            self.rule.parse(input, currentresults, skip)
+            results = Results(self.name)
+            self.rule.parse(input, results, skip)
+            if self.action:
+                currentresults.append(self.action(*results))
+                return
+            if len(results) == 1:
+                currentresults.append(results[0])
+            else:
+                currentresults.append(results)
 
 
     def __init__(self, fn=None):
