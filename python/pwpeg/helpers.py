@@ -2,6 +2,7 @@ import re
 from .pwpeg import *
 
 from functools import wraps
+from itertools import chain
 
 
 def _AllBut(but, escape):
@@ -37,7 +38,7 @@ def _Balanced(start, end, escape):
 
     balanced_inside.set_fn(__balanced_inside)
 
-    return Rule(start, ZeroOrMore(balanced_inside), end).set_action(lambda s, l, e: [s] + l + [e]).set_skip(None)
+    return Rule(start, ZeroOrMore(balanced_inside), end).set_action(lambda s, l, e: [s] + list(chain(*l)) + [e]).set_skip(None)
 
 Balanced = FunctionRule(_Balanced)
 Balanced.set_name("Balanced")
