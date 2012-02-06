@@ -292,7 +292,6 @@ class FunctionRule(Rule):
             # self.skip = None
 
         def parse(self, input, currentresults, skip):
-            # if not self.rule: self.rule = self.fn(*self.args).set_action(self.action).set_skip(self.skip)
             if not self.rule:
                 self.rule = self.fn(*self.args).set_name("*" + self.name)
 
