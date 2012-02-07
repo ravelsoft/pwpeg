@@ -3,7 +3,7 @@
 from distutils.core import setup
 
 setup(name='PwPEG',
-      version='0.3.0',
+      version='0.3.1',
       description='Python PEG Parsing Framework',
       author='Christophe Eymard',
       author_email='christophe.eymard@ravelsoft.com',
