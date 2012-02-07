@@ -151,5 +151,7 @@ RightAssociative = FunctionRule(_RightAssociative)
 def delimitedby_regexp(char, escape):
     return re.compile(u("{0}({1}{0}|(?!{0}).)*{0}").format(re.escape(char), re.escape(escape)))
 
-def allbut_regexp(char, escape):
-    return re.compile(u("({1}{0}|(?!{0}).)*").format(re.escape(char), re.escape(escape)))
+def allbut_regexp(patterns, escape):
+    if not isinstance(patterns, list):
+        patterns = [patterns]
+    return re.compile("({1}({0})|(?!({0})).)+".format("|".join([re.escape(s) for s in patterns]), re.escape(escape)))
