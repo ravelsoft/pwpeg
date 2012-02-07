@@ -117,6 +117,9 @@ class TextInput(Input):
 class TokenInput(Input):
     # FIXME Create token input.
 
+    def __init__(self, tokens, input):
+        pass
+
     def match(self, reg): raise Exception("Token Inputs can't match regexps")
     def startswith(self, txt): raise Exception("Token Inputs can't match strings")
 

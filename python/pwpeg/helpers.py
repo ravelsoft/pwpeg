@@ -63,13 +63,13 @@ def _RepeatingSeparated(rule, separator, at_least, at_most):
         at_most = 0
 
     if at_least == 0:
-        return Optional(
+        return Optional(Rule(
             rule,
             Repetition(0, at_most - 1,
                 separator,
                 rule
             ).set_action(lambda l: map(lambda e: e[1], l))
-        ).set_action(_repeat_action)
+        ).set_action(_repeat_action))
 
     return Rule(
         rule,
