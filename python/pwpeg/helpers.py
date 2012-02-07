@@ -149,9 +149,9 @@ RightAssociative = FunctionRule(_RightAssociative)
 #       Regexp Helpers
 
 def delimitedby_regexp(char, escape):
-    return re.compile(u("{0}({1}{0}|(?!{0}).)*{0}").format(re.escape(char), re.escape(escape)))
+    return re.compile(u("{0}({1}{0}|(?!{0}).)*{0}").format(re.escape(char), re.escape(escape)), re.DOTALL)
 
 def allbut_regexp(patterns, escape):
     if not isinstance(patterns, list):
         patterns = [patterns]
-    return re.compile("({1}({0})|(?!({0})).)+".format("|".join([re.escape(s) for s in patterns]), re.escape(escape)))
+    return re.compile("({1}({0})|(?!({0})).)+".format("|".join([re.escape(s) for s in patterns]), re.escape(escape)), re.DOTALL)
