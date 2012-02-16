@@ -84,8 +84,8 @@ balanced_brackets   = Balanced.instanciate("[", "]", "\\")
 
 # Re-concatenate the string.
 string = Either(
-    delimitedby_regexp("'", '\\'),
-    delimitedby_regexp('"', '\\'),
+    delimitedby_regexp_escapes("'", '\\.'),
+    delimitedby_regexp_escapes('"', '\\.'),
     # Backslash quoted string
     Rule(re.compile("\\\\[^ \t\n\[\]\|\)]+")).set_action(lambda s: "'" + s[1:].replace('\'', '\\\'').replace('\\', '\\\\') + "'").set_name("Backslashed String")
 ).set_skip(None)
