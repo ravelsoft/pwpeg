@@ -69,7 +69,7 @@ class Visitor(object):
 
         c = Context()
         subnodes = [self.visit(p, c) for p in node.rules]
-        if len(subnodes) > 1:
+        if len(subnodes) > 1 or node.action:
             node.code = "Rule(\n" + ",\n".join(map(indent, subnodes)) + "\n)"
         else:
             node.code = subnodes[0]
