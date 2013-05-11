@@ -381,8 +381,6 @@ class Repetition(Rule):
         save_pos = input.pos
         last_error = []
 
-        self.try_skip(input, skip)
-
         while input.has_next() and (_to == -1 or times < _to):
             try:
                 # Get the resultss.
