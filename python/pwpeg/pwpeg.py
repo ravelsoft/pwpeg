@@ -184,13 +184,24 @@ class Rule(object):
         self.name = name
         return self
 
+    def try_skip(self, input, skip):
+
+        # Override the provided skip if the rule has its own.
+        if "skip" in self.__dict__: skip = self.skip
+
+        if skip:
+            try:
+                # We create a new Results() variable since we're not
+                # going to store anything that was matched.
+                skip.parse(input, Results())
+            except SyntaxError as e:
+                # Nothing to skip.
+                pass
 
     def parse(self, input, currentresults=None, skip=None):
         """ Execute the rules
         """
         results = Results(self.name)
-
-        if "skip" in self.__dict__: skip = self.skip
 
         if not self.productions:
             raise Exception("There are no productions defined for " + self.name)
@@ -200,12 +211,7 @@ class Rule(object):
         for r in self.productions:
             subrule_result = None
 
-            if skip:
-                try:
-                    skip.parse(input, Results())
-                except SyntaxError as e:
-                    # Nothing to skip.
-                    pass
+            self.try_skip(input, skip)
 
             try:
                 r.parse(input, results, skip)
@@ -374,6 +380,8 @@ class Repetition(Rule):
 
         save_pos = input.pos
         last_error = []
+
+        self.try_skip(input, skip)
 
         while input.has_next() and (_to == -1 or times < _to):
             try:
@@ -547,16 +555,10 @@ class Any(Rule):
         self.name = "Any"
 
     def parse(self, input, currentresults=None, skip=None):
-        if skip is None and "skip" in self.__dict__: skip = self.skip
 
         save_pos = input.pos
 
-        if skip:
-            try:
-                skip.parse(input, Results())
-            except SyntaxError as e:
-                # Nothing to skip.
-                pass
+        self.try_skip(input, skip)
 
         if not input.has_next():
             input.rewind_to(save_pos)
