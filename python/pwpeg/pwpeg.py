@@ -51,7 +51,7 @@ class Results(list):
         self.dict = {}
 
     def __repr__(self):
-        return u("{0}:{1}").format(self.name, super(Results, self).__repr__())
+        return u("{0}").format(super(Results, self).__repr__())
 
     def add(self, name, value):
         self.dict[name] = len(self)
@@ -187,7 +187,7 @@ class Rule(object):
     def try_skip(self, input, skip):
 
         # Override the provided skip if the rule has its own.
-        if "skip" in self.__dict__: skip = self.skip
+        skip = self.get_skip(skip)
 
         if skip:
             try:
@@ -197,6 +197,9 @@ class Rule(object):
             except SyntaxError as e:
                 # Nothing to skip.
                 pass
+
+    def get_skip(self, skip):
+        return self.skip if 'skip' in self.__dict__ else skip
 
     def parse(self, input, currentresults=None, skip=None):
         """ Execute the rules
@@ -214,7 +217,7 @@ class Rule(object):
             self.try_skip(input, skip)
 
             try:
-                r.parse(input, results, skip)
+                r.parse(input, results, self.get_skip(skip))
             except SyntaxError as e:
                 input.rewind_to(pos_save)
                 raise SyntaxError(u("In {0} ").format(self.name), input, [e])
@@ -355,7 +358,7 @@ class FunctionRule(Rule):
     def parse(self, input, currentresults=None, skip=None):
         # Works if the rule doesn't need any arguments
         rule = self.instanciate()
-        rule.parse(input, currentresults, skip)
+        rule.parse(input, currentresults, self.get_skip(skip))
 
 
 
@@ -384,7 +387,7 @@ class Repetition(Rule):
         while input.has_next() and (_to == -1 or times < _to):
             try:
                 # Get the resultss.
-                self.rule.parse(input, results, skip)
+                self.rule.parse(input, results, self.get_skip(skip))
                 times += 1
             except SyntaxError as e:
                 last_error.append(e.suberrors[0])
@@ -449,7 +452,7 @@ class Optional(Repetition):
 
     def parse(self, input, currentresults=None, skip=None):
         results = Results()
-        super(Optional, self).parse(input, results, skip)
+        super(Optional, self).parse(input, results, self.get_skip(skip))
 
         if len(results[0]) == 0:
             currentresults.append(None)
@@ -475,7 +478,7 @@ class Not(Rule):
         results = Results()
         try:
             # Results are ignored.
-            super(Not, self).parse(input, results, skip)
+            super(Not, self).parse(input, results, self.get_skip(skip))
         except SyntaxError as e:
             # Couldn't match the next rule, which is what we want, so
             # we just restore the parser's position so it will continue
@@ -504,7 +507,7 @@ class And(Rule):
         results = Results() # We're going to ignore any results.
         save_pos = input.pos
         # Try to parse our rules
-        super(And, self).parse(input, results, skip)
+        super(And, self).parse(input, results, self.get_skip(skip))
 
         # If there was no error, we don't advance, which is what we want.
         # A syntax error is raised otherwise in our super() parse.
@@ -528,7 +531,7 @@ class Either(Rule):
 
         for rule in self.productions:
             try:
-                rule.parse(input, results, skip)
+                rule.parse(input, results, self.get_skip(skip))
                 res = results[0]
 
                 if self.action:
@@ -581,7 +584,7 @@ class MemoRule(Rule):
         if not self.memorized:
             # act = self.__dict__.get("action", None)
             # if act: del self.__dict__["action"]
-            self.rule.parse(input, currentresults, skip)
+            self.rule.parse(input, currentresults, self.get_skip(skip))
 
             res = currentresults[len(currentresults) - 1]
             if not isinstance(res, list) and not isinstance(res, tuple):
@@ -590,7 +593,7 @@ class MemoRule(Rule):
                 self.memorized = Rule(*res)
         else:
             # The rule is now memorized, and we can execute it.
-            self.memorized.parse(input, currentresults, skip)
+            self.memorized.parse(input, currentresults, self.get_skip(skip))
 
 
 class Parser(object):
