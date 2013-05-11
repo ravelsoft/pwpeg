@@ -343,6 +343,9 @@ class FunctionRule(Rule):
 
         return r
 
+    def __call__(self, *args):
+        return self.instanciate(*args)
+
     def parse(self, input, currentresults=None, skip=None):
         # Works if the rule doesn't need any arguments
         rule = self.instanciate()
