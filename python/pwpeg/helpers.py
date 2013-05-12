@@ -160,7 +160,7 @@ def _associative(right=True):
 
             while idx < l - 2:
                 idx += 2
-                tmpbuild = builder(tmpbuild, lst[idx], lst[idx + 1])
+                tmpbuild = builder(lst[idx], tmpbuild, lst[idx + 1])
 
             return tmpbuild
 
