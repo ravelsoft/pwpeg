@@ -307,10 +307,11 @@ class FunctionRule(Rule):
     """
 
     class InstanciatedRule(Rule):
-        def __init__(self, fn, name, args):
+        def __init__(self, fn, name, args, kwargs):
             self.fn = fn
             self.name = name
             self.args = args
+            self.kwargs = kwargs
             self.action = None
             self.rule = None
             # self.skip = None
@@ -318,7 +319,7 @@ class FunctionRule(Rule):
         def parse(self, input, currentresults, skip):
             # Instanciate the rule if it wasn't already.
             if not self.rule:
-                self.rule = self.fn(*self.args).set_name("*" + self.name)
+                self.rule = self.fn(*self.args, **self.kwargs).set_name("*" + self.name)
 
                 if hasattr(self, "skip") and not hasattr(self.rule, "skip"):
                     self.rule.set_skip(self.skip)
@@ -346,18 +347,15 @@ class FunctionRule(Rule):
         self.action = None
 
     def set_fn(self, fn):
-        args, varargs, keywords, defaults = inspect.getargspec(fn)
-        if keywords:
-            raise Exception("Function rules functions can only take simple args")
-
         self.fn = fn
         self.name = fn.__name__
         return self
 
-    def instanciate(self, *args):
+    def instanciate(self, *args, **kwargs):
+        # FIXME : should show kw args as well
         arg_names = u("({0})").format(", ".join([repr(a) for a in args]))
         # r = self.fn(*args).set_name(self.name + arg_names)
-        r = FunctionRule.InstanciatedRule(self.fn, self.name + arg_names, args)
+        r = FunctionRule.InstanciatedRule(self.fn, self.name + arg_names, args, kwargs)
 
         if self.action:
             r.set_action(self.action)
@@ -367,8 +365,8 @@ class FunctionRule(Rule):
 
         return r
 
-    def __call__(self, *args):
-        return self.instanciate(*args)
+    def __call__(self, *args, **kw):
+        return self.instanciate(*args, **kw)
 
     def parse(self, input, currentresults=None, skip=None):
         # Works if the rule doesn't need any arguments
