@@ -289,7 +289,19 @@ class Predicate(Rule):
 
 
 class FunctionRule(Rule):
-    """ A rule that takes arguments.
+    """ A rule builder that builds rules using a function.
+
+        It is created using either a function as its constructor argument,
+        or by calling set_fn() with the function a posteriori, for situations
+        where a forward declaration of the rule is needed.
+
+        The function must return either a Rule or a tuple of productions.
+
+        To create a rule from the FunctionRule, use the instanciate method or
+        just call it ; the arguments to __call__() or instanciate() are
+        forwarded to the building function that returns the final Rule.
+
+        For examples, see the helpers module.
 
         Beware, set_skip and set_action should NOT be set directly on this rule.
     """
@@ -304,6 +316,7 @@ class FunctionRule(Rule):
             # self.skip = None
 
         def parse(self, input, currentresults, skip):
+            # Instanciate the rule if it wasn't already.
             if not self.rule:
                 self.rule = self.fn(*self.args).set_name("*" + self.name)
 
@@ -325,9 +338,11 @@ class FunctionRule(Rule):
         if fn:
             self.set_fn(fn)
             self.name = fn.__name__
+            self.__doc__ = fn.__doc__
         else:
             self.fn = None
             self.name = "Param rule <no function>"
+
         self.action = None
 
     def set_fn(self, fn):
@@ -552,6 +567,9 @@ class Either(Rule):
 
 
 class Any(Rule):
+    ''' a Rule matching any single token in the stream.
+    '''
+
     def __init__(self):
         self.name = "Any"
 
